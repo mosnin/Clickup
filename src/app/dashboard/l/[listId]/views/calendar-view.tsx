@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { parseQuickAdd } from "@/lib/quick-add";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
+import { KvCard } from "@/components/dashboard/deel-ui";
 import { useToast } from "@/components/toast";
 import {
   PriorityDot,
@@ -96,8 +97,14 @@ export function CalendarView({
   return (
     <div className="space-y-3">
       <header className="flex items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">{format(cursor, "MMMM yyyy")}</h2>
         <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCursor(startOfMonth(new Date()))}
+          >
+            Today
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -106,13 +113,9 @@ export function CalendarView({
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCursor(startOfMonth(new Date()))}
-          >
-            Today
-          </Button>
+          <h2 className="min-w-36 text-center text-sm font-semibold">
+            {format(cursor, "MMMM yyyy")}
+          </h2>
           <Button
             variant="ghost"
             size="sm"
@@ -130,13 +133,16 @@ export function CalendarView({
         </p>
       )}
 
-      <div className="overflow-hidden rounded-2xl panel">
-        <div className="grid grid-cols-7 text-center text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
-          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-            <div key={d} className="py-2.5">
-              {d}
-            </div>
-          ))}
+      <div className="deel-cal">
+        <div className="grid grid-cols-7 text-center text-xs text-muted-foreground">
+          {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(
+            (d) => (
+              <div key={d} className="py-2.5">
+                <span className="hidden sm:inline">{d}</span>
+                <span className="sm:hidden">{d.slice(0, 3)}</span>
+              </div>
+            ),
+          )}
         </div>
         <div>
           {weeks.map((week, wi) => (
@@ -173,9 +179,8 @@ export function CalendarView({
                   >
                     <div
                       className={cn(
-                        "pointer-events-none mb-1 flex h-5 w-5 items-center justify-center text-tiny",
-                        today &&
-                          "rounded-full bg-foreground font-medium text-background",
+                        "pointer-events-none mb-1 flex h-6 w-6 items-center justify-center text-xs",
+                        today && "deel-cal-today font-medium",
                       )}
                     >
                       {day.getDate()}
@@ -234,18 +239,18 @@ export function CalendarView({
       </div>
 
       {undated.length > 0 && (
-        <div className="rounded-2xl panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            No due date · drag onto a day to schedule
+        <KvCard title="No due date">
+          <p className="px-5 pb-3 text-sm text-muted-foreground">
+            Drag onto a day to schedule.
           </p>
-          <ul className="mt-2.5 flex flex-wrap gap-2">
+          <ul className="flex flex-wrap gap-2 px-5 pb-4">
             {undated.map((t) => (
               <li key={t._id}>
                 <TaskChip task={t} pill />
               </li>
             ))}
           </ul>
-        </div>
+        </KvCard>
       )}
     </div>
   );
@@ -264,8 +269,10 @@ function TaskChip({ task, pill }: { task: Doc<"tasks">; pill?: boolean }) {
       }}
       onClick={(e) => e.stopPropagation()}
       className={cn(
-        "flex cursor-grab items-center gap-1 truncate rounded-full bg-muted text-tiny transition-colors hover:bg-brand-100 hover:text-brand-700 active:cursor-grabbing",
-        pill ? "px-2 py-1 text-xs" : "px-1.5 py-0.5",
+        "flex cursor-grab items-center gap-1 truncate text-tiny transition-colors hover:underline active:cursor-grabbing",
+        pill
+          ? "rounded-full bg-muted px-2 py-1 text-xs"
+          : "deel-name-link px-0.5 py-0.5",
       )}
     >
       {task.priority && (

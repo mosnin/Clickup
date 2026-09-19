@@ -75,7 +75,7 @@ export function WorkspaceSettings({
       <ImportSection />
 
       <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="text-sm font-semibold text-foreground">
           Integrations
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -185,7 +185,7 @@ function ExecutionPolicyForm({
     <section>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className="text-sm font-semibold text-foreground">
             Execution authority
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
@@ -449,7 +449,7 @@ function MembersSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
 
   return (
     <section>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-sm font-semibold text-foreground">
         Members
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
@@ -742,7 +742,7 @@ function ImportSection() {
   const [open, setOpen] = useState(false);
   return (
     <section>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-sm font-semibold text-foreground">
         Import
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
@@ -800,7 +800,7 @@ function ExportSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
 
   return (
     <section>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-sm font-semibold text-foreground">
         Data & compliance
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">

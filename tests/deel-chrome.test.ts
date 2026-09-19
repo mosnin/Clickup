@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deelLongDate, greetingFor, totalLabel } from "../src/lib/deel-chrome";
+import { deelTabClass } from "../src/components/dashboard/deel-ui";
 
 describe("greetingFor", () => {
   it("uses Deel's 2025 home voice and the first name", () => {
@@ -23,5 +24,12 @@ describe("totalLabel", () => {
     expect(totalLabel(289, "person", "people")).toBe("Total 289 people");
     expect(totalLabel(1, "person", "people")).toBe("Total 1 person");
     expect(totalLabel(0, "task")).toBe("Total 0 tasks");
+  });
+});
+
+describe("deelTabClass", () => {
+  it("marks the current tab the way Deel underlines page tabs", () => {
+    expect(deelTabClass(true)).toContain("deel-tab-on");
+    expect(deelTabClass(false)).not.toContain("deel-tab-on");
   });
 });

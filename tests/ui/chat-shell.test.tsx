@@ -235,7 +235,7 @@ describe("the channel sidebar", () => {
     ];
   });
 
-  it("orders its sections Channels, Forums, Direct messages", () => {
+  it("orders its sections My chats, Forums, Direct messages", () => {
     state.queries[CHANNELS] = [
       room({ channelId: "c1", name: "general" }),
       room({ channelId: "f1", name: "rfcs", kind: "forum" }),
@@ -246,14 +246,14 @@ describe("the channel sidebar", () => {
     const labels = within(sidebar)
       .getAllByRole("button", { expanded: true })
       .map((el) => el.textContent?.trim());
-    expect(labels).toEqual(["Channels", "Forums", "Direct messages"]);
+    expect(labels).toEqual(["My chats", "Forums", "Direct messages"]);
   });
 
   it("omits Forums when a community has none, rather than showing an empty one", () => {
     state.queries[CHANNELS] = [room()];
     render(<ChatShell>{null}</ChatShell>);
     expect(screen.queryByText("Forums")).toBeNull();
-    expect(screen.getByText("Channels")).toBeTruthy();
+    expect(screen.getByText("My chats")).toBeTruthy();
   });
 
   it("marks the room in the URL as the current row", () => {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { ListChecks, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
@@ -84,9 +84,7 @@ export default function MyWorkPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Everything on you"
         description="Every task assigned to you across every space, with the ones that need moving first."
-        icon={ListChecks}
         title="My work"
         context={
           rows === undefined

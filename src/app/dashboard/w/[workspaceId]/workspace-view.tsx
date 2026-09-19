@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Building2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Comments } from "@/components/dashboard/comments";
@@ -20,6 +20,7 @@ import { WorkspaceSettings } from "@/components/dashboard/workspace-settings";
 import { FieldLibraryPanel } from "@/components/dashboard/field-library-panel";
 import { ActivityFeed } from "@/app/dashboard/agents/agents-view";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { DeelTabs, deelTabClass } from "@/components/dashboard/deel-ui";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { EASE, motion, Stagger, StaggerItem } from "@/components/motion";
@@ -137,9 +138,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={"Workspace"}
-        description={"Everyone in it, everything they are running, and how it is going."}
-        icon={Building2}
+        description="Everyone in it, everything they are running, and how it is going."
         title={workspace.name}
         context={
           <>
@@ -157,32 +156,22 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
         {/* Scrolls horizontally on narrow screens instead of wrapping into a
             two-row pile, the negative margin lets the row bleed to the
             header's own edge padding. */}
-        <div className="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-2 sm:-mx-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <nav
-            aria-label="Workspace tabs"
-            className="flex items-center gap-1 whitespace-nowrap text-sm"
-          >
-            {visibleTabs.map(({ key, label }) => (
-              <Link
-                key={key}
-                href={
-                  key === "overview"
-                    ? `/dashboard/w/${workspace._id}`
-                    : `/dashboard/w/${workspace._id}?tab=${key}`
-                }
-                aria-current={tab === key ? "page" : undefined}
-                className={cn(
-                  "rounded-md px-3 py-1.5 font-medium transition-colors",
-                  tab === key
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                )}
-              >
-                {label}
-              </Link>
-            ))}
-          </nav>
-        </div>
+        <DeelTabs label="Workspace">
+          {visibleTabs.map(({ key, label }) => (
+            <Link
+              key={key}
+              href={
+                key === "overview"
+                  ? `/dashboard/w/${workspace._id}`
+                  : `/dashboard/w/${workspace._id}?tab=${key}`
+              }
+              aria-current={tab === key ? "page" : undefined}
+              className={deelTabClass(tab === key)}
+            >
+              {label}
+            </Link>
+          ))}
+        </DeelTabs>
       </PageHeader>
 
       <motion.div

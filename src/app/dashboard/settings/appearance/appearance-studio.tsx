@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, PanelBottom, PanelLeft, PanelRight, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { DeelFilterBar, FilterPill } from "@/components/dashboard/deel-ui";
 import { ActorGlyph } from "@/components/appearance/actor-glyph";
 import { AnimatedBar } from "@/components/motion";
 import { Orb } from "@/components/dashboard/orb";
@@ -161,7 +162,6 @@ export function AppearanceStudio() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={"Appearance"}
         title={copy.title}
         context={
           space && editingPlaceOnly
@@ -185,22 +185,18 @@ export function AppearanceStudio() {
       {/* The scope switch. Switching re-resolves and morphs, which is how this
           teaches the model: you see the layer you are editing take over. */}
       {availableScopes.length > 1 ? (
-        <div className="segmented w-full sm:w-auto sm:inline-flex">
+        <DeelFilterBar className="w-full sm:w-auto">
           {availableScopes.map((s) => (
-            <button
+            <FilterPill
               key={s}
-              type="button"
               aria-pressed={scope === s}
+              active={scope === s}
               onClick={() => morphLayout("body", () => setScope(s))}
-              className={cn(
-                "min-w-0 flex-1 truncate px-3 py-1.5 text-xs sm:flex-none",
-                scope === s && "segmented-on",
-              )}
             >
               {s === "space" && space ? space.name : SCOPE_COPY[s].tab}
-            </button>
+            </FilterPill>
           ))}
-        </div>
+        </DeelFilterBar>
       ) : (
         <p className="text-xs text-muted-foreground">
           Open a space to give it a look of its own.{" "}

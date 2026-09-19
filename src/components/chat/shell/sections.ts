@@ -67,7 +67,7 @@ export function sidebarSections(
     .sort(byActivityThenName);
 
   const sections: ChatSection[] = [
-    { id: "channels", label: "Channels", action: "Browse channels", channels: rooms },
+    { id: "channels", label: "My chats", action: "New chat", channels: rooms },
   ];
   if (forums.length > 0) {
     sections.push({ id: "forums", label: "Forums", action: null, channels: forums });

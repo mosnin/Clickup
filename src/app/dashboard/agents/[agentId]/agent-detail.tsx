@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
-  ArrowLeft,
   CheckCircle2,
   CircleDashed,
   XCircle,
@@ -22,6 +21,7 @@ import { errorMessage } from "@/lib/errors";
 import { userSpacesFromTree } from "@/lib/user-spaces";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { BackLink, MetricStrip } from "@/components/dashboard/deel-ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,8 +38,6 @@ import {
   AnimatedBar,
   AnimatedNumber,
   PresenceDot,
-  Stagger,
-  StaggerItem,
 } from "@/components/motion";
 import { ActorGlyph } from "@/components/appearance/actor-glyph";
 import { AgentRooms } from "@/components/chat/bridge";
@@ -120,15 +118,9 @@ export function AgentDetail({ agentId }: { agentId: string }) {
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/dashboard/agents"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Agents
-      </Link>
+      <BackLink href="/dashboard/agents">Agents</BackLink>
 
       <PageHeader
-        eyebrow={"Agent"}
         description={agent.description || undefined}
         title={agent.name}
         context={
@@ -496,20 +488,18 @@ function StatsRow({
       : []),
   ];
   return (
-    <Stagger className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-      {tiles.map((t) => (
-        <StaggerItem key={t.label}>
-          <Card className="gap-1 rounded-2xl p-3 text-center">
-            <p className="text-lg font-bold tracking-tight">
-              <AnimatedNumber value={t.value} />
-            </p>
-            <p className="mt-0.5 text-micro uppercase tracking-wider text-muted-foreground">
-              {t.label}
-            </p>
-          </Card>
-        </StaggerItem>
-      ))}
-    </Stagger>
+    <MetricStrip
+      className="sm:grid-cols-3 lg:grid-cols-4"
+      items={tiles.map((t) => ({
+        label: t.label,
+        value:
+          typeof t.value === "number" ? (
+            <AnimatedNumber value={t.value} />
+          ) : (
+            t.value
+          ),
+      }))}
+    />
   );
 }
 

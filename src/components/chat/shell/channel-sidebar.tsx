@@ -113,7 +113,7 @@ export function ChannelSidebar() {
           >
             <Search aria-hidden className="chat-quiet size-3.5 shrink-0" />
             <span className="chat-quiet flex-1 truncate text-left">
-              Search everything
+              Find a chat
             </span>
             <kbd className="chat-quiet shrink-0 text-tiny font-medium">
               ⌘K
@@ -319,6 +319,16 @@ export function ChannelSidebar() {
             `w-full` by design, and sharing a row with the profile card is what
             forced the one-button form in the first place. */}
         <div className="flex flex-col gap-1 px-2 pb-2 pt-1">
+          {scope ? (
+            <button
+              type="button"
+              onClick={() => setBrowsing(true)}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-foreground px-4 text-sm font-medium text-background"
+            >
+              <Plus aria-hidden className="size-3.5" />
+              New chat
+            </button>
+          ) : null}
           <ChatCustomiseRow />
           <ThemeToggle />
           <ChatProfileCard />

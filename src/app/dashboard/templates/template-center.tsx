@@ -232,9 +232,7 @@ export function TemplateCenter() {
   return (
     <div className="min-w-0 space-y-6">
       <PageHeader
-        eyebrow="Start from something"
         description="Ready-made lists, sprints and checklists. Pick one and it arrives with its statuses, fields and first tasks already in place."
-        icon={LayoutTemplate}
         title="Templates"
         context={
           catalog === undefined

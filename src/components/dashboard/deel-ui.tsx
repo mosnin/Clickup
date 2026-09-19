@@ -1,4 +1,10 @@
 import Link from "next/link";
+import type {
+  ButtonHTMLAttributes,
+  CSSProperties,
+  HTMLAttributes,
+  ReactNode,
+} from "react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { totalLabel } from "@/lib/deel-chrome";
@@ -43,12 +49,12 @@ export function StatusDot({
 export function DeelFilterBar({
   children,
   className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("deel-filter-bar", className)}>{children}</div>
+    <div className={cn("deel-filter-bar", className)} {...props}>
+      {children}
+    </div>
   );
 }
 
@@ -76,7 +82,7 @@ export function BackLink({
   className,
 }: {
   href: string;
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
   return (
@@ -99,9 +105,9 @@ export function KvCard({
   children,
   className,
 }: {
-  title?: React.ReactNode;
-  action?: React.ReactNode;
-  children: React.ReactNode;
+  title?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
   return (
@@ -126,8 +132,8 @@ export function KvRow({
   children,
   className,
 }: {
-  label: React.ReactNode;
-  children: React.ReactNode;
+  label: ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
   return (
@@ -143,7 +149,7 @@ export function MetricStrip({
   className,
 }: {
   items: {
-    value: React.ReactNode;
+    value: ReactNode;
     label: string;
     tone?: string;
   }[];
@@ -185,7 +191,7 @@ export function EmptyBlob({
 }: {
   title: string;
   message?: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
   className?: string;
 }) {
   return (
@@ -228,15 +234,24 @@ export function NameLink({
   children,
   className,
   done,
+  scroll,
+  style,
+  title,
 }: {
   href: string;
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
   done?: boolean;
+  scroll?: boolean;
+  style?: CSSProperties;
+  title?: string;
 }) {
   return (
     <Link
       href={href}
+      scroll={scroll}
+      style={style}
+      title={title}
       className={cn(
         "deel-name-link min-w-0 font-medium hover:underline",
         done && "text-muted-foreground line-through",
@@ -246,4 +261,53 @@ export function NameLink({
       {children}
     </Link>
   );
+}
+
+export function FilterPill({
+  active,
+  children,
+  className,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  active?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn("deel-filter-pill", active && "deel-filter-pill-on", className)}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function SettingsGrid({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={cn("deel-settings-grid", className)}>{children}</div>;
+}
+
+export function DeelTabs({
+  children,
+  label,
+  className,
+}: {
+  children: ReactNode;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <nav aria-label={label} className={cn("deel-tabs", className)}>
+      {children}
+    </nav>
+  );
+}
+
+export function deelTabClass(current?: boolean, className?: string) {
+  return cn("deel-tab", current && "deel-tab-on", className);
 }

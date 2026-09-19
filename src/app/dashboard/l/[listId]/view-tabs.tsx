@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { Id } from "@convex/_generated/dataModel";
-import { cn } from "@/lib/utils";
+import { DeelTabs, deelTabClass } from "@/components/dashboard/deel-ui";
 
 export type ViewKey =
   | "overview"
@@ -65,30 +65,19 @@ export function ViewTabs({
     return qs ? `/dashboard/l/${listId}?${qs}` : `/dashboard/l/${listId}`;
   }
   return (
-    // The app's raised-white-on-recessed-track segmented control
-    // (`.segmented`/`.segmented-on`, straight from globals.css) — same look
-    // as every other view/mode toggle. Still a `<nav>` of real `<Link>`s
-    // (not the Tabs primitive): this strip changes the URL and needs
-    // `aria-current`, ⌘-click and shareable addresses, which a tablist
-    // built for in-page panes doesn't give you.
-    <nav aria-label="Views" className="max-w-full overflow-x-auto overscroll-x-contain">
-      <div className="flex items-center gap-0.5">
-        {VIEWS.map(({ key, label }) => (
-          <Link
-            key={key}
-            href={href(key)}
-            aria-current={active === key ? "page" : undefined}
-            className={cn(
-              "inline-flex flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-medium",
-              active === key
-                ? "bg-card text-foreground shadow-sm ring-1 ring-border"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {label}
-          </Link>
-        ))}
-      </div>
-    </nav>
+    // Deel page tabs (Mobbin Talent / settings): sentence-case labels on
+    // an underline, still real `<Link>`s so ⌘-click and the address stay.
+    <DeelTabs label="Views">
+      {VIEWS.map(({ key, label }) => (
+        <Link
+          key={key}
+          href={href(key)}
+          aria-current={active === key ? "page" : undefined}
+          className={deelTabClass(active === key)}
+        >
+          {label}
+        </Link>
+      ))}
+    </DeelTabs>
   );
 }
