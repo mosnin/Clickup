@@ -16,6 +16,7 @@ import {
   requireListAccess,
   requireProjectAccess,
   requireSpaceAccess,
+  requireStorageUrlAccess,
   requireTaskAccess,
 } from "./_authz";
 import type { Actor } from "./_agentAuth";
@@ -1009,7 +1010,7 @@ export const generateUploadUrl = mutation({
 export const urlForUpload = mutation({
   args: { storageId: v.id("_storage") },
   handler: async (ctx, { storageId }) => {
-    await requireIdentity(ctx);
+    await requireStorageUrlAccess(ctx, storageId);
     return await ctx.storage.getUrl(storageId);
   },
 });

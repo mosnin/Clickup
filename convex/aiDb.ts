@@ -2,6 +2,12 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import {
+  requireDocLikeParentAccess,
+  requireMessageParentAccess,
+  requirePageAccess,
+  requireTaskAccess,
+} from "./_authz";
 
 // Database-side helpers for the AI layer. The OpenAI actions in ai.ts run
 // in the Node runtime, which may only define actions — every query/mutation
@@ -156,3 +162,73 @@ export const _embeddingsByIds = internalQuery({
     return rows.filter((r): r is NonNullable<typeof r> => r !== null);
   },
 });
+
+const brainHitValidator = v.object({
+  parentType: v.union(
+    v.literal("doc"),
+    v.literal("task"),
+    v.literal("page"),
+    v.literal("message"),
+  ),
+  parentId: v.string(),
+  textPreview: v.string(),
+});
+
+/**
+ * Vector search is scoped to a workspace (or personal user), which is
+ * coarser than `canAccessSpace`. Private-space tasks, space-parented
+ * docs, and comments on either would otherwise come back as `textPreview`
+ * to any workspace member. Drop anything the viewer could not open
+ * through the ordinary hierarchy helpers.
+ */
+export const _filterHitsForViewer = internalQuery({
+  args: { hits: v.array(brainHitValidator) },
+  handler: async (ctx, { hits }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const out: typeof hits = [];
+    for (const hit of hits) {
+      if (await viewerCanReadHit(ctx, hit)) out.push(hit);
+    }
+    return out;
+  },
+});
+
+async function viewerCanReadHit(
+  ctx: QueryCtx,
+  hit: {
+    parentType: "doc" | "task" | "page" | "message";
+    parentId: string;
+  },
+): Promise<boolean> {
+  try {
+    if (hit.parentType === "task") {
+      const taskId = ctx.db.normalizeId("tasks", hit.parentId);
+      if (!taskId) return false;
+      await requireTaskAccess(ctx, taskId);
+      return true;
+    }
+    if (hit.parentType === "page") {
+      const pageId = ctx.db.normalizeId("pages", hit.parentId);
+      if (!pageId) return false;
+      await requirePageAccess(ctx, pageId);
+      return true;
+    }
+    if (hit.parentType === "doc") {
+      const docId = ctx.db.normalizeId("docs", hit.parentId);
+      if (!docId) return false;
+      const doc = await ctx.db.get(docId);
+      if (!doc) return false;
+      await requireDocLikeParentAccess(ctx, doc.parentType, doc.parentId);
+      return true;
+    }
+    const messageId = ctx.db.normalizeId("messages", hit.parentId);
+    if (!messageId) return false;
+    const message = await ctx.db.get(messageId);
+    if (!message) return false;
+    await requireMessageParentAccess(ctx, message.parentType, message.parentId);
+    return true;
+  } catch {
+    return false;
+  }
+}

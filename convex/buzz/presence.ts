@@ -55,7 +55,7 @@ import { action, mutation, query } from "../_generated/server";
 import type { ActionCtx, MutationCtx, QueryCtx } from "../_generated/server";
 import { anyApi } from "convex/server";
 import type { FunctionReference } from "convex/server";
-import { api } from "../_generated/api";
+import { internal } from "../_generated/api";
 import { requireScopeAccess } from "../_authz";
 import { requireAgentByKey, type Actor } from "../_agentAuth";
 import { clearActorPresence, markPresence } from "../presence";
@@ -80,8 +80,8 @@ export const USER_STATUS_MAX_LENGTH = 120;
 /** The Ably channel a room's ephemeral signals ride. */
 export function buzzRoomChannel(channelId: string): string {
   // The `operate:chat:` prefix is not decoration: `realtime.publishFromClient`
-  // refuses any other namespace from a client-reachable path. `buzz:` after it
-  // keeps a Chat room and a Work channel from ever colliding on an id.
+  // refuses any other namespace (it is internal; this is defense in depth).
+  // `buzz:` after it keeps a Chat room and a Work channel from ever colliding.
   return `operate:chat:buzz:${channelId}`;
 }
 
@@ -550,7 +550,7 @@ export const signal = action({
     });
     if (!room) throw new ConvexError("Channel not found");
 
-    await ctx.runAction(api.realtime.publishFromClient, {
+    await ctx.runAction(internal.realtime.publishFromClient, {
       channel: buzzRoomChannel(args.channelId),
       name: args.kind,
       data: {

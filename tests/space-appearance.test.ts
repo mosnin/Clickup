@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../convex/schema";
-import { api } from "../convex/_generated/api";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { api, internal } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { DEFAULT_APPEARANCE, resolveLayered } from "../src/lib/appearance";
 
@@ -413,12 +415,16 @@ describe("watching someone change a space's look", () => {
   });
 
   it("keeps the look channel out of reach of a caller naming it directly", async () => {
-    // publishFromClient is reachable from a signed-in client, so its namespace
-    // guard is the thing standing between a member and a channel they were
-    // never authorized for.
+    // publishFromClient is internal: a client cannot aim the server Ably
+    // key at an arbitrary channel. The prefix guard stays so a buggy
+    // authorized caller still cannot touch inbox or activity channels.
+    const source = readFileSync(join(process.cwd(), "convex/realtime.ts"), "utf8");
+    expect(source).toMatch(/export const publishFromClient = internalAction\(/);
+    expect(source).not.toMatch(/export const publishFromClient = action\(/);
+
     const { t } = await seed();
     await expect(
-      t.withIdentity(BOB).action(api.realtime.publishFromClient, {
+      t.withIdentity(BOB).action(internal.realtime.publishFromClient, {
         channel: "operate:workspace:anything",
         name: "look.preview",
         data: {},
