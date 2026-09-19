@@ -4,9 +4,12 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { formatDurationCoarse } from "@/lib/duration";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { AnimatedNumber, Stagger, StaggerItem } from "@/components/motion";
+import {
+  DeelBar,
+  EmptyBlob,
+  KvCard,
+  MetricStrip,
+} from "@/components/dashboard/deel-ui";
 
 export function ReportsPanel({
   workspaceId,
@@ -21,7 +24,7 @@ export function ReportsPanel({
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
-          <Card key={i} className="h-28 animate-pulse bg-muted/40" />
+          <div key={i} className="h-28 animate-pulse rounded-[var(--ui-radius-card)] bg-muted/40" />
         ))}
       </div>
     );
@@ -29,11 +32,10 @@ export function ReportsPanel({
 
   if (summary === null) {
     return (
-      <Card className="items-center py-10 text-center">
-        <CardContent className="text-sm text-muted-foreground">
-          You don&apos;t have access to this workspace&apos;s reports.
-        </CardContent>
-      </Card>
+      <EmptyBlob
+        title="Reports are out of reach"
+        message="You don't have access to this workspace's reports."
+      />
     );
   }
 
@@ -52,45 +54,44 @@ export function ReportsPanel({
 
   return (
     <div className="space-y-6">
-      <Stagger className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat
-          label="Open tasks"
-          value={summary.taskCounts.open + summary.taskCounts.inProgress}
-          subtext={`${summary.taskCounts.inProgress} in progress`}
-        />
-        <Stat
-          label="Completed this week"
-          value={summary.taskCounts.completedThisWeek}
-          subtext={`of ${summary.taskCounts.total} total`}
-        />
-        <Stat
-          label="Tracked this week"
-          value={formatDurationCoarse(summary.timeTrackedThisWeekMs)}
-          subtext={summary.timeByUser.length
-            ? `${summary.timeByUser.length} contributor${summary.timeByUser.length === 1 ? "" : "s"}`
-            : "No entries yet"}
-        />
-        <Stat
-          label="Goals"
-          value={summary.goals.total}
-          subtext={`${Math.round(summary.goals.avgProgress * 100)}% avg progress`}
-        />
-      </Stagger>
+      <MetricStrip
+        className="sm:grid-cols-2 lg:grid-cols-4"
+        items={[
+          {
+            value: summary.taskCounts.open + summary.taskCounts.inProgress,
+            label: `${summary.taskCounts.inProgress} in progress`,
+          },
+          {
+            value: summary.taskCounts.completedThisWeek,
+            label: `Completed this week · of ${summary.taskCounts.total} total`,
+          },
+          {
+            value: formatDurationCoarse(summary.timeTrackedThisWeekMs),
+            label: summary.timeByUser.length
+              ? `${summary.timeByUser.length} contributor${summary.timeByUser.length === 1 ? "" : "s"}`
+              : "No entries yet",
+          },
+          {
+            value: summary.goals.total,
+            label: `${Math.round(summary.goals.avgProgress * 100)}% avg progress`,
+          },
+        ]}
+      />
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Widget title="Workload by assignee">
-          {summary.taskCountByAssignee.length === 0 ? (
-            <Empty>No tasks assigned yet.</Empty>
-          ) : (
-            <ul className="space-y-2">
-              {summary.taskCountByAssignee
+        <KvCard title="Workload by assignee">
+          <div className="space-y-3 px-5 py-4">
+            {summary.taskCountByAssignee.length === 0 ? (
+              <EmptyBlob title="No tasks assigned yet" />
+            ) : (
+              summary.taskCountByAssignee
                 .slice()
                 .sort((a, b) => b.count - a.count)
                 .slice(0, 8)
                 .map(({ clerkId, count }) => {
                   const user = memberByClerkId.get(clerkId);
                   return (
-                    <Bar
+                    <DeelBar
                       key={clerkId}
                       label={user?.name ?? user?.email ?? "Unknown"}
                       value={count}
@@ -99,117 +100,37 @@ export function ReportsPanel({
                       )}
                     />
                   );
-                })}
-            </ul>
-          )}
-        </Widget>
+                })
+            )}
+          </div>
+        </KvCard>
 
-        <Widget title="Time tracked this week">
-          {summary.timeByUser.length === 0 ? (
-            <Empty>No time has been logged yet this week.</Empty>
-          ) : (
-            <ul className="space-y-2">
-              {summary.timeByUser
+        <KvCard title="Time tracked this week">
+          <div className="space-y-3 px-5 py-4">
+            {summary.timeByUser.length === 0 ? (
+              <EmptyBlob title="No time logged this week" />
+            ) : (
+              summary.timeByUser
                 .slice()
                 .sort((a, b) => b.ms - a.ms)
                 .slice(0, 8)
                 .map((entry) => {
                   const user = memberByClerkId.get(entry.clerkId);
                   return (
-                    <Bar
+                    <DeelBar
                       key={entry.clerkId}
                       label={user?.name ?? user?.email ?? "Unknown"}
-                      valueLabel={formatDurationCoarse(entry.ms)}
                       value={entry.ms}
-                      max={Math.max(
-                        ...summary.timeByUser.map((e) => e.ms),
-                      )}
+                      valueLabel={formatDurationCoarse(entry.ms)}
+                      max={Math.max(...summary.timeByUser.map((e) => e.ms))}
                     />
                   );
-                })}
-            </ul>
-          )}
-        </Widget>
+                })
+            )}
+          </div>
+        </KvCard>
       </div>
     </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  subtext,
-}: {
-  label: string;
-  value: number | string;
-  subtext?: string;
-}) {
-  return (
-    <StaggerItem>
-      <Card className="gap-2 py-5">
-        <CardHeader className="px-5">
-          <CardDescription className="text-tiny font-medium uppercase tracking-wider">
-            {label}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-5">
-          <p className="text-3xl font-bold tabular-nums tracking-tight">
-            <AnimatedNumber value={value} />
-          </p>
-          {subtext && (
-            <p className="mt-1 text-xs text-muted-foreground">{subtext}</p>
-          )}
-        </CardContent>
-      </Card>
-    </StaggerItem>
-  );
-}
-
-function Widget({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Card className="gap-0 p-4">
-      <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-      <CardContent className="mt-3 p-0">{children}</CardContent>
-    </Card>
-  );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return (
-    <Card className="items-center py-4 text-center">
-      <CardContent className="text-sm text-muted-foreground">
-        {children}
-      </CardContent>
-    </Card>
-  );
-}
-
-function Bar({
-  label,
-  value,
-  valueLabel,
-  max,
-}: {
-  label: string;
-  value: number;
-  valueLabel?: string;
-  max: number;
-}) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
-  return (
-    <li>
-      <div className="flex items-center justify-between text-xs">
-        <span className="truncate">{label}</span>
-        <span className="text-muted-foreground">{valueLabel ?? value}</span>
-      </div>
-      <Progress value={pct} className="mt-1 h-1.5" />
-    </li>
   );
 }
 

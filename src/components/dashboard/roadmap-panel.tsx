@@ -28,6 +28,12 @@ import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
 import { InlineCreate } from "@/components/dashboard/inline-create";
+import {
+  EmptyBlob,
+  KvCard,
+  NameLink,
+  StatusDot,
+} from "@/components/dashboard/deel-ui";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
@@ -57,14 +63,14 @@ type RoadmapProject = Roadmap["projects"][number];
 
 // Same pastel language as the list cards: dark ink stays pinned on
 // pastel fills in both themes; "paused" rides the theme-adaptive muted pair.
-const STATUS_CHIP: Record<
+const STATUS_DOT: Record<
   NonNullable<RoadmapProject["projectStatus"]>,
-  { label: string; className: string }
+  { label: string; color: string }
 > = {
-  on_track: { label: "On track", className: "bg-pastel-green dark:text-neutral-900" },
-  at_risk: { label: "At risk", className: "bg-pastel-yellow dark:text-neutral-900" },
-  off_track: { label: "Off track", className: "bg-pastel-red dark:text-neutral-900" },
-  paused: { label: "Paused", className: "bg-muted text-muted-foreground" },
+  on_track: { label: "On track", color: "var(--color-success, #16a34a)" },
+  at_risk: { label: "At risk", color: "#d97706" },
+  off_track: { label: "Off track", color: "var(--color-danger)" },
+  paused: { label: "Paused", color: "var(--color-muted-foreground)" },
 };
 
 function fmtTarget(ts: number): string {
@@ -177,14 +183,11 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
 
   if (!active) {
     return (
-      <div className="rounded-2xl panel px-6 py-14 text-center">
-        <p className="text-sm font-semibold">Plan the arc of the work</p>
-        <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
-          A roadmap sequences this workspace&apos;s lists into phases — Now,
-          Next, Later — so everyone can see what ships when.
-        </p>
-        <div className="mt-4 flex justify-center">
-          {creating ? (
+      <EmptyBlob
+        title="Plan the arc of the work"
+        message="A roadmap sequences this workspace's lists into phases — Now, Next, Later — so everyone can see what ships when."
+        action={
+          creating ? (
             <InlineCreate
               placeholder="Roadmap name…"
               className="w-64"
@@ -195,9 +198,9 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
             <Button size="sm" onClick={() => setCreating(true)}>
               <Plus className="h-4 w-4" /> New roadmap
             </Button>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
     );
   }
 
@@ -1264,7 +1267,7 @@ function PhaseColumn({
   ];
 
   return (
-    <div className="rounded-2xl panel p-3">
+    <div className="deel-board-col p-3">
       <div className="flex items-center gap-2">
         {renaming ? (
           <InlineCreate
@@ -1556,11 +1559,11 @@ function ProjectCard({
   onMoveTo: (targetId: string) => void;
 }) {
   const chip = project.projectStatus
-    ? STATUS_CHIP[project.projectStatus]
+    ? STATUS_DOT[project.projectStatus]
     : null;
 
   return (
-    <div className="bento-tile p-3">
+    <div className="deel-board-card">
       <div className="flex items-start gap-2">
         {project.color && (
           <span
@@ -1569,13 +1572,13 @@ function ProjectCard({
             style={{ backgroundColor: project.color }}
           />
         )}
-        <Link
+        <NameLink
           href={`/dashboard/p/${project.projectId}`}
-          className="min-w-0 flex-1 truncate text-sm font-medium hover:underline"
+          className="min-w-0 flex-1 truncate text-sm"
           title={project.name}
         >
           {project.name}
-        </Link>
+        </NameLink>
         <div className="flex flex-shrink-0 items-center">
           <button
             type="button"
@@ -1598,16 +1601,7 @@ function ProjectCard({
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-        {chip && (
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 text-micro font-medium",
-              chip.className,
-            )}
-          >
-            {chip.label}
-          </span>
-        )}
+        {chip && <StatusDot color={chip.color} label={chip.label} />}
         <span className="text-xs text-muted-foreground">
           {project.done}/{project.total} done
         </span>
@@ -1643,16 +1637,14 @@ function UnassignedRail({
   const { toast } = useToast();
 
   return (
-    <section className="rounded-2xl panel p-4">
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Not on roadmap
-      </p>
+    <KvCard title="Not on roadmap">
+      <div className="px-5 pb-4">
       {projects.length === 0 ? (
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Every list in this workspace is on a roadmap.
         </p>
       ) : (
-        <ul className="mt-3 space-y-1">
+        <ul className="space-y-1">
           <AnimatePresence initial={false}>
             {projects.map((p) => (
               <motion.li
@@ -1671,15 +1663,15 @@ function UnassignedRail({
                     style={{ backgroundColor: p.color }}
                   />
                 )}
-                <Link
+                <NameLink
                   href={`/dashboard/p/${p.projectId}`}
-                  className="min-w-0 truncate text-sm font-medium hover:underline"
+                  className="min-w-0 truncate text-sm"
                   title={p.name}
                 >
                   {p.name}
-                </Link>
+                </NameLink>
                 {p.spaceName && (
-                  <span className="truncate text-tiny uppercase tracking-wider text-muted-foreground">
+                  <span className="truncate text-xs text-muted-foreground">
                     {p.spaceName}
                   </span>
                 )}
@@ -1708,6 +1700,7 @@ function UnassignedRail({
           </AnimatePresence>
         </ul>
       )}
-    </section>
+      </div>
+    </KvCard>
   );
 }

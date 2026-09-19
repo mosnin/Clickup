@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { deelLongDate, greetingFor, totalLabel } from "../src/lib/deel-chrome";
+import {
+  barPct,
+  deelLongDate,
+  greetingFor,
+  totalLabel,
+} from "../src/lib/deel-chrome";
 
 describe("greetingFor", () => {
   it("uses Deel's 2025 home voice and the first name", () => {
@@ -23,5 +28,14 @@ describe("totalLabel", () => {
     expect(totalLabel(289, "person", "people")).toBe("Total 289 people");
     expect(totalLabel(1, "person", "people")).toBe("Total 1 person");
     expect(totalLabel(0, "task")).toBe("Total 0 tasks");
+  });
+});
+
+describe("barPct", () => {
+  it("clamps a reports bar to 0–100 and refuses a broken max", () => {
+    expect(barPct(25, 100)).toBe(25);
+    expect(barPct(200, 100)).toBe(100);
+    expect(barPct(10, 0)).toBe(0);
+    expect(barPct(Number.NaN, 10)).toBe(0);
   });
 });

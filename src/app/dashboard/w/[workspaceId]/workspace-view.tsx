@@ -20,7 +20,13 @@ import { WorkspaceSettings } from "@/components/dashboard/workspace-settings";
 import { FieldLibraryPanel } from "@/components/dashboard/field-library-panel";
 import { ActivityFeed } from "@/app/dashboard/agents/agents-view";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { DeelTabs, deelTabClass } from "@/components/dashboard/deel-ui";
+import {
+  DeelTabs,
+  EmptyBlob,
+  KvCard,
+  NameLink,
+  deelTabClass,
+} from "@/components/dashboard/deel-ui";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { EASE, motion, Stagger, StaggerItem } from "@/components/motion";
@@ -147,9 +153,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
                 {members.length} member{members.length === 1 ? "" : "s"}
               </span>
             )}
-            <Badge variant="outline" className="uppercase tracking-wider">
-              {workspace.role}
-            </Badge>
+            <Badge variant="outline">{workspace.role}</Badge>
           </>
         }
       >
@@ -182,18 +186,13 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
       >
       {tab === "overview" ? (
         workspace.spaces.length === 0 ? (
-          <div className="rounded-2xl panel p-10 text-center">
-            <p className="text-sm text-muted-foreground">
-              No spaces yet. Use the <span className="font-medium">+</span> next
-              to <span className="font-medium">{workspace.name}</span> in the
-              sidebar to add one.
-            </p>
-          </div>
+          <EmptyBlob
+            title="No spaces yet"
+            message={`Use the + next to ${workspace.name} in the sidebar to add one.`}
+          />
         ) : (
           <section>
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Spaces
-            </h2>
+            <h2 className="text-sm font-semibold text-foreground">Spaces</h2>
             <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {workspace.spaces.map((space) => {
                 const lists = [
@@ -202,36 +201,35 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
                 ];
                 return (
                   <StaggerItem key={space._id}>
-                    <div id={space._id} className="rounded-2xl panel p-5">
-                      <div className="flex items-center gap-2">
-                        <span
-                          aria-hidden
-                          className="inline-block h-3 w-3 rounded-full"
-                          style={{ backgroundColor: space.color ?? "#a9c6f2" }}
-                        />
-                        <span className="font-medium">{space.name}</span>
-                      </div>
+                    <div id={space._id}>
+                    <KvCard
+                      title={
+                        <span className="flex items-center gap-2">
+                          <span
+                            aria-hidden
+                            className="inline-block size-2 rounded-full"
+                            style={{ backgroundColor: space.color ?? "#a9c6f2" }}
+                          />
+                          {space.name}
+                        </span>
+                      }
+                    >
                       {lists.length === 0 ? (
-                        <p className="mt-3 text-xs text-muted-foreground">
+                        <p className="px-5 py-3 text-sm text-muted-foreground">
                           No lists yet, add one from the sidebar.
                         </p>
                       ) : (
-                        <ul className="mt-3 space-y-0.5">
+                        <ul>
                           {lists.map((list) => (
-                            <li key={list._id}>
-                              <Link
-                                href={`/dashboard/l/${list._id}`}
-                                className="group flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted"
-                              >
-                                <span className="truncate">{list.name}</span>
-                                <span className="flex-shrink-0 text-tiny text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
-                                  List · Board · Gantt
-                                </span>
-                              </Link>
+                            <li key={list._id} className="deel-kv-row !grid-cols-1">
+                              <NameLink href={`/dashboard/l/${list._id}`}>
+                                {list.name}
+                              </NameLink>
                             </li>
                           ))}
                         </ul>
                       )}
+                    </KvCard>
                     </div>
                   </StaggerItem>
                 );

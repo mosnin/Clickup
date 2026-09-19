@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { ShieldAlert } from "lucide-react";
@@ -8,7 +7,6 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { Stagger, StaggerItem } from "@/components/motion";
-import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
@@ -17,6 +15,7 @@ import {
   type TaskPriority,
 } from "@/components/dashboard/priority";
 import { EmptyState } from "@/components/dashboard/empty-state";
+import { NameLink, StatusDot, TotalCount } from "@/components/dashboard/deel-ui";
 import { useToast } from "@/components/toast";
 
 // "My Work": every open task assigned to me across my personal space and
@@ -87,11 +86,9 @@ export default function MyWorkPage() {
         description="Every task assigned to you across every space, with the ones that need moving first."
         title="My work"
         context={
-          rows === undefined
-            ? undefined
-            : total === 0
-              ? "Nothing assigned"
-              : `${total} open task${total === 1 ? "" : "s"}`
+          rows === undefined ? undefined : (
+            <TotalCount count={total} singular="open task" />
+          )
         }
       />
 
@@ -133,20 +130,19 @@ export default function MyWorkPage() {
                     when the panel itself is narrow — never a viewport
                     breakpoint, since a group card can be narrow on a wide
                     screen (split view, a docked sidebar) and vice versa. */}
-                <Card className="@container gap-0 overflow-hidden rounded-2xl py-0">
+                <div className="deel-kv-card @container">
                   <Stagger>
                     {items.map((r, i) => (
                       <StaggerItem key={r._id}>
                         <TaskRow
                           row={r}
-                          index={i}
                           overdue={key === "overdue"}
                           isLast={i === items.length - 1}
                         />
                       </StaggerItem>
                     ))}
                   </Stagger>
-                </Card>
+                </div>
               </section>
             );
           })}
@@ -165,12 +161,10 @@ function formatDue(ts: number): string {
 
 function TaskRow({
   row,
-  index,
   overdue,
   isLast,
 }: {
   row: Row;
-  index: number;
   overdue: boolean;
   isLast: boolean;
 }) {
@@ -218,31 +212,11 @@ function TaskRow({
         aria-label={`Mark "${row.title}" complete`}
         onCheckedChange={() => complete()}
       />
-      {/* Zero-padded index down the left margin — the row language's
-          catalogue number, muted and out of the tab/reading flow. Hidden
-          below the panel's own @sm width rather than the viewport's, so a
-          narrow group card on a wide screen behaves the same as a phone. */}
-      <span
-        aria-hidden
-        className="hidden w-5 flex-shrink-0 text-right font-title text-xs tabular-nums text-muted-foreground @sm:inline-block"
-      >
-        {String(index + 1).padStart(2, "0")}
-      </span>
-      <Link
-        href={href}
-        className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5"
-      >
-        {/* The glyph: the list's own status colour, already rendered here
-            before the restyle — kept as the row's small circular monogram. */}
-        <span
-          aria-hidden
-          className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-          style={{ backgroundColor: row.statusColor }}
-          title={row.statusName}
-        />
-        <span className="min-w-0 flex-1 basis-48 truncate text-sm font-semibold">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
+        <StatusDot color={row.statusColor} label={row.statusName} className="hidden @sm:inline-flex" />
+        <NameLink href={href} className="min-w-0 flex-1 basis-48 truncate text-sm">
           {row.title}
-        </span>
+        </NameLink>
 
         {/* Metadata as outlined chips, pushed right and wrapping under the
             title once the row runs out of room — driven by flex-wrap against
@@ -279,7 +253,7 @@ function TaskRow({
             </span>
           )}
         </span>
-      </Link>
+      </div>
     </div>
   );
 }

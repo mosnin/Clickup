@@ -38,3 +38,9 @@ export function totalLabel(
   const word = count === 1 ? singular : (plural ?? `${singular}s`);
   return `Total ${count} ${word}`;
 }
+
+/** Width of a Deel reports bar. Hostile / empty max collapses to 0. */
+export function barPct(value: number, max: number): number {
+  if (!Number.isFinite(value) || !Number.isFinite(max) || max <= 0) return 0;
+  return Math.min(100, Math.max(0, (value / max) * 100));
+}

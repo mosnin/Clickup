@@ -7,7 +7,7 @@ import type {
 } from "react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { totalLabel } from "@/lib/deel-chrome";
+import { barPct, totalLabel } from "@/lib/deel-chrome";
 
 /**
  * Shared 2025 Deel surfaces, tailored to operate.
@@ -310,4 +310,37 @@ export function DeelTabs({
 
 export function deelTabClass(current?: boolean, className?: string) {
   return cn("deel-tab", current && "deel-tab-on", className);
+}
+
+/**
+ * Thin blue horizontal bar — name left, count right. Read from Deel
+ * Mobbin workforce / insights / home country widgets. Not a status fill.
+ */
+export function DeelBar({
+  label,
+  value,
+  valueLabel,
+  max,
+  className,
+}: {
+  label: ReactNode;
+  value: number;
+  valueLabel?: ReactNode;
+  max: number;
+  className?: string;
+}) {
+  const pct = barPct(value, max);
+  return (
+    <div className={cn("deel-bar", className)}>
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="min-w-0 truncate text-foreground">{label}</span>
+        <span className="shrink-0 tabular-nums text-muted-foreground">
+          {valueLabel ?? value}
+        </span>
+      </div>
+      <div className="deel-bar-track" aria-hidden>
+        <div className="deel-bar-fill" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
 }
