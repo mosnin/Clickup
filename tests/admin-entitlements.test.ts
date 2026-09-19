@@ -4,8 +4,8 @@ import schema from "../convex/schema";
 import { api } from "../convex/_generated/api";
 import { sha256Hex } from "../convex/_agentAuth";
 import {
-  ADMIN_BURST_LIMIT_PER_MINUTE,
-  ADMIN_DAILY_ACTION_LIMIT,
+  STARTER_MAX_AGENTS,
+  STARTER_MAX_WORKSPACES,
 } from "../convex/_adminEntitlements";
 
 const modules = import.meta.glob("../convex/**/*.*s");
@@ -71,9 +71,9 @@ describe("admin complimentary entitlements", () => {
     delete process.env.PLATFORM_ADMIN_EMAILS;
   });
 
-  it("exposes the extreme safety ceilings", () => {
-    expect(ADMIN_DAILY_ACTION_LIMIT).toBe(100_000);
-    expect(ADMIN_BURST_LIMIT_PER_MINUTE).toBe(600);
+  it("exposes the Starter plan ceilings", () => {
+    expect(STARTER_MAX_AGENTS).toBe(3);
+    expect(STARTER_MAX_WORKSPACES).toBe(1);
   });
 
   it("does not meter writes on a staff-owned scope, even with a zero wallet", async () => {
@@ -97,8 +97,9 @@ describe("admin complimentary entitlements", () => {
     const who = await t.query(api.agentApi.whoami, { apiKey });
     expect(who.billing.complimentary).toBe(true);
     expect(who.billing.meteringEnabled).toBe(false);
-    expect(who.dailyActionLimit).toBe(ADMIN_DAILY_ACTION_LIMIT);
-    expect(who.burstLimitPerMinute).toBe(ADMIN_BURST_LIMIT_PER_MINUTE);
+    expect(who.dailyActionLimit).toBeNull();
+    expect(who.burstLimitPerMinute).toBeNull();
+    expect(who.actionsRemainingToday).toBeNull();
   });
 
   it("still meters an ordinary user when metering is on", async () => {
@@ -116,7 +117,7 @@ describe("admin complimentary entitlements", () => {
     expect(who.billing.meteringEnabled).toBe(true);
   });
 
-  it("refuses a complimentary agent that has already hit the safety daily ceiling", async () => {
+  it("does not apply a plan action-budget cap on an owner-admin scope", async () => {
     const t = convexTest(schema, modules);
     await seedUsers(t);
     const apiKey = await seedAgent(t, ROOT.subject);
@@ -130,11 +131,34 @@ describe("admin complimentary entitlements", () => {
       await ctx.db.insert("agentUsage", {
         agentId: agent!._id,
         day: new Date().toISOString().slice(0, 10),
-        count: ADMIN_DAILY_ACTION_LIMIT,
+        count: 200_000,
       });
     });
     await expect(
-      t.mutation(api.agentApi.createSpace, { apiKey, name: "Over" }),
+      t.mutation(api.agentApi.createSpace, { apiKey, name: "Still going" }),
+    ).resolves.toBeTruthy();
+  });
+
+  it("still honors a human-set daily budget on an owner-admin agent", async () => {
+    const t = convexTest(schema, modules);
+    await seedUsers(t);
+    const apiKey = await seedAgent(t, ROOT.subject);
+    await t.run(async (ctx) => {
+      const agent = await ctx.db
+        .query("agents")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "user").eq("parentId", ROOT.subject),
+        )
+        .unique();
+      await ctx.db.patch(agent!._id, { dailyActionLimit: 2 });
+      await ctx.db.insert("agentUsage", {
+        agentId: agent!._id,
+        day: new Date().toISOString().slice(0, 10),
+        count: 2,
+      });
+    });
+    await expect(
+      t.mutation(api.agentApi.createSpace, { apiKey, name: "Throttled" }),
     ).rejects.toThrow(/daily action budget/i);
   });
 

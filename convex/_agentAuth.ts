@@ -3,11 +3,7 @@ import type { QueryCtx, MutationCtx, DatabaseWriter } from "./_generated/server"
 import type { Doc, Id } from "./_generated/dataModel";
 import { getSpaceForList } from "./_authz";
 import { buildPaymentRequired, paymentRequiredError, x402Config } from "./_x402";
-import {
-  ADMIN_BURST_LIMIT_PER_MINUTE,
-  ADMIN_DAILY_ACTION_LIMIT,
-  isComplimentaryScope,
-} from "./_adminEntitlements";
+import { isComplimentaryScope } from "./_adminEntitlements";
 
 // Agent-side counterpart of _authz.ts. Human calls authenticate via Clerk
 // (ctx.auth); agent calls authenticate via an API key passed as an argument
@@ -103,6 +99,27 @@ export const DEFAULT_DAILY_ACTION_LIMIT = 2000;
 // retry loop gets stopped in seconds instead of after burning a whole
 // day's budget.
 export const BURST_LIMIT_PER_MINUTE = 60;
+
+/** Plan action budget. `null` daily/burst means unlimited (owner-admin). */
+export function resolveActionBudget(
+  dailyActionLimit: number | undefined,
+  complimentary: boolean,
+): { dailyActionLimit: number | null; burstLimitPerMinute: number | null } {
+  if (complimentary) {
+    // An explicit per-agent throttle still binds; the Starter default does not.
+    if (typeof dailyActionLimit === "number" && dailyActionLimit > 0) {
+      return {
+        dailyActionLimit,
+        burstLimitPerMinute: BURST_LIMIT_PER_MINUTE,
+      };
+    }
+    return { dailyActionLimit: null, burstLimitPerMinute: null };
+  }
+  return {
+    dailyActionLimit: dailyActionLimit ?? DEFAULT_DAILY_ACTION_LIMIT,
+    burstLimitPerMinute: BURST_LIMIT_PER_MINUTE,
+  };
+}
 
 function utcDay(): string {
   return new Date().toISOString().slice(0, 10);
@@ -356,29 +373,27 @@ export async function requireAgentByKey(
           q.eq("agentId", agent._id).eq("day", day),
         )
         .unique();
-      // Complimentary scopes default to the staff ceiling. An explicit
-      // per-agent budget still wins when it is *lower* (a human throttling
-      // one agent); it cannot raise the circuit breaker.
-      const requested = agent.dailyActionLimit ?? (
-        complimentary ? ADMIN_DAILY_ACTION_LIMIT : DEFAULT_DAILY_ACTION_LIMIT
+      // Owner-admin scopes have no plan action-budget cap. A human can
+      // still throttle one agent by setting dailyActionLimit; absence
+      // means unlimited, not "the Starter 2,000".
+      const budget = resolveActionBudget(
+        agent.dailyActionLimit,
+        complimentary,
       );
-      const limit = complimentary
-        ? Math.min(requested, ADMIN_DAILY_ACTION_LIMIT)
-        : requested;
-      const burstLimit = complimentary
-        ? ADMIN_BURST_LIMIT_PER_MINUTE
-        : BURST_LIMIT_PER_MINUTE;
       const count = usage?.count ?? 0;
-      if (count >= limit) {
+      if (budget.dailyActionLimit !== null && count >= budget.dailyActionLimit) {
         throw new ConvexError(
-          `Daily action budget exhausted (${limit}/day). Ask a human to raise this agent's limit.`,
+          `Daily action budget exhausted (${budget.dailyActionLimit}/day). Ask a human to raise this agent's limit.`,
         );
       }
       const minuteCount =
         usage?.minute === minute ? (usage.minuteCount ?? 0) : 0;
-      if (minuteCount >= burstLimit) {
+      if (
+        budget.burstLimitPerMinute !== null &&
+        minuteCount >= budget.burstLimitPerMinute
+      ) {
         throw new ConvexError(
-          `Rate limited (${burstLimit} actions/minute). Slow down and retry shortly.`,
+          `Rate limited (${budget.burstLimitPerMinute} actions/minute). Slow down and retry shortly.`,
         );
       }
       if (usage) {

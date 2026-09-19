@@ -182,14 +182,17 @@ export function AgentDetail({ agentId }: { agentId: string }) {
       {stats && <StatsRow stats={stats} />}
 
       {canManage ? (
-        <GovernancePanel
-          agent={agent}
-          usageToday={usageToday}
-          usageLimit={usageLimit}
-          spendTodayUsd={spendTodayUsd}
-          spendLimitUsd={spendLimitUsd}
-          hasNotifySecret={hasNotifySecret}
-        />
+        <>
+          <GovernancePanel
+            agent={agent}
+            usageToday={usageToday}
+            usageLimit={usageLimit}
+            spendTodayUsd={spendTodayUsd}
+            spendLimitUsd={spendLimitUsd}
+            hasNotifySecret={hasNotifySecret}
+          />
+          <FleetGrantPanel agent={agent} />
+        </>
       ) : (
         <section className="rounded-2xl panel p-4">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -994,6 +997,188 @@ function GovernancePanel({
             </p>
           )}
         </div>
+      )}
+    </section>
+  );
+}
+
+// Granting a fleet is a human act: one approval, then the agent may mint
+// workers under that envelope without asking again. The mutation itself
+// requires a Clerk identity, so this panel is only mounted for canManage.
+const FLEET_SIZES = [
+  { label: "A small team", value: 3, hint: "Up to 3 workers" },
+  { label: "A working fleet", value: 10, hint: "Up to 10 workers" },
+  { label: "A large fleet", value: 25, hint: "Up to 25 workers" },
+] as const;
+
+function FleetGrantPanel({ agent }: { agent: Doc<"agents"> }) {
+  const grants = useQuery(api.agentGrants.listForScope, {
+    parentType: agent.parentType,
+    parentId: agent.parentId,
+  });
+  const grantFleet = useMutation(api.agentGrants.grantFleet);
+  const revokeFleet = useMutation(api.agentGrants.revokeFleet);
+  const { toast } = useToast();
+  const [size, setSize] = useState<number>(10);
+  const [busy, setBusy] = useState(false);
+  const [revoking, setRevoking] = useState(false);
+
+  const live = (grants ?? []).find(
+    (g) => g.holderAgentId === agent._id && g.revokedAt === null,
+  );
+
+  async function grant() {
+    setBusy(true);
+    try {
+      const result = await grantFleet({
+        holderAgentId: agent._id,
+        maxAgents: size,
+        role: (agent.role ?? "member") === "readonly" ? "readonly" : "member",
+        dailyActionLimit: agent.dailyActionLimit ?? 2000,
+      });
+      toast(`Fleet granted · ${result.maxAgents} workers`);
+    } catch (e) {
+      toast(errorMessage(e, "Couldn't grant a fleet"), { kind: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revoke() {
+    if (!live) return;
+    setBusy(true);
+    try {
+      const result = await revokeFleet({ grantId: live.grantId });
+      setRevoking(false);
+      toast(
+        result.revoked > 0
+          ? `Fleet revoked · ${result.revoked} worker${result.revoked === 1 ? "" : "s"} paused`
+          : "Fleet revoked",
+      );
+    } catch (e) {
+      setRevoking(false);
+      toast(errorMessage(e, "Couldn't revoke this fleet"), {
+        kind: "error",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-2xl panel p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Fleet
+      </h2>
+      {grants === undefined ? (
+        <div className="mt-3 h-16 animate-pulse rounded-2xl bg-muted/30" />
+      ) : live ? (
+        <>
+          <p className="mt-2 text-sm">
+            This agent may mint workers without asking again.{" "}
+            <span className="text-muted-foreground">
+              {live.activeCount} of {live.maxAgents} live
+              {live.restrictedToLists > 0
+                ? ` · fenced to ${live.restrictedToLists} list${live.restrictedToLists === 1 ? "" : "s"}`
+                : ""}
+              . Each worker stops at {live.dailyActionLimit.toLocaleString()}{" "}
+              actions a day.
+            </span>
+          </p>
+          {live.members.length > 0 && (
+            <ul className="mt-3 space-y-1">
+              {live.members.map((member) => (
+                <li key={member.agentId}>
+                  <Link
+                    href={`/dashboard/agents/${member.agentId}`}
+                    className="lift block truncate rounded-2xl bg-muted/30 px-3 py-2 text-sm"
+                  >
+                    {member.name}
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {member.status}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {revoking ? (
+            <div className="mt-3">
+              <p className="text-sm text-muted-foreground">
+                Workers lose their keys and stop. The orchestrator keeps its
+                own key.
+              </p>
+              <div className="mt-2 flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full text-danger"
+                  disabled={busy}
+                  onClick={() => void revoke()}
+                >
+                  {busy ? "Revoking…" : "Revoke fleet"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="rounded-full"
+                  disabled={busy}
+                  onClick={() => setRevoking(false)}
+                >
+                  Keep it
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-3 rounded-full"
+              onClick={() => setRevoking(true)}
+            >
+              Revoke fleet
+            </Button>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Let this agent mint workers under a ceiling you set once. It
+            cannot grant itself a fleet — only you can.
+          </p>
+          <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            How many workers
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            {FLEET_SIZES.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={size === option.value}
+                onClick={() => setSize(option.value)}
+                className={cn(
+                  "lift rounded-2xl px-3 py-2.5 text-left transition",
+                  size === option.value
+                    ? "bento bg-card ring-2 ring-foreground"
+                    : "bento-tile hover:bg-muted/60",
+                )}
+              >
+                <span className="block text-sm font-medium">{option.label}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  {option.hint}
+                </span>
+              </button>
+            ))}
+          </div>
+          <Button
+            size="sm"
+            className="mt-3 rounded-full"
+            disabled={busy}
+            onClick={() => void grant()}
+          >
+            {busy ? "Granting…" : "Grant a fleet"}
+          </Button>
+        </>
       )}
     </section>
   );

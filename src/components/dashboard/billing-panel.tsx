@@ -149,9 +149,8 @@ function ScopeBilling({ scope }: { scope: Scope }) {
         <Card className="p-5">
           <p className="text-sm font-medium">Complimentary staff account</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            This scope is unpaid: no credit metering and no agent cap. A
-            safety ceiling still stops a runaway agent (100,000 actions/day,
-            600/minute).
+            This scope is unpaid: no credit metering, no agent cap, no
+            workspace cap, and no action-budget cap.
           </p>
         </Card>
       )}

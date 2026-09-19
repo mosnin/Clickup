@@ -425,9 +425,8 @@ function UserAccountPanel({ clerkId }: { clerkId: string }) {
 
       {account.complimentary && (
         <p className="mt-3 text-sm text-muted-foreground">
-          This is a staff account: unpaid, no agent cap, no credit metering.
-          Agents still hit a safety ceiling of 100,000 actions/day and 600
-          actions/minute so a runaway loop can be stopped.
+          This is an owner-admin account: unpaid, no agent cap, no workspace
+          cap, no action-budget cap, and no credit metering.
         </p>
       )}
 
@@ -1239,7 +1238,7 @@ function SettingsPanel({ settings }: { settings: Record<string, unknown> }) {
           <Separator />
           <NumberSetting
             label="Max agents per workspace"
-            hint="Applies to personal spaces and workspaces. 0 = unlimited for ordinary accounts. Staff-owned (complimentary) scopes are never capped."
+            hint="Applies to personal spaces and workspaces. Unset uses the Starter default of 3. 0 = unlimited for ordinary accounts. Owner-admin scopes are never capped."
             value={maxAgents}
             onSave={async (v) => {
               await setSetting({ key: "max_agents_per_workspace", value: v });

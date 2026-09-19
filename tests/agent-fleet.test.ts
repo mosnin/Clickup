@@ -131,6 +131,15 @@ describe("withinEnvelope", () => {
 async function setup() {
   const t = convexTest(schema, modules);
   const ids = await t.run(async (ctx) => {
+    // Fleet tests isolate grant/envelope rules. An explicit 0 turns the
+    // Starter agent cap off so a workspace can hold the orchestrator plus
+    // its workers without the plan ceiling becoming the thing under test.
+    await ctx.db.insert("platformSettings", {
+      key: "max_agents_per_workspace",
+      value: 0,
+      updatedByClerkId: OWNER.subject,
+      updatedAt: Date.now(),
+    });
     const workspaceId = await ctx.db.insert("workspaces", {
       name: "Fleet Co",
       slug: "fleet-co",
