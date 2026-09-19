@@ -61,19 +61,16 @@
      shadow rather than by the absence of tint — which means the shadow has to
      be able to carry that alone, and `--ui-surface-shadow` below is stronger
      than it was for exactly this reason. */
-  /* The backdrop the app FLOATS ON, not the app. See `.app-slab`. */
-  --color-page: #e8e8ec;
-  /* One step below the cards. White-on-white was the doctrine, and it is
-     what forced a hairline around every card — a rim is the only way two
-     identical whites can meet. The references separate surfaces by VALUE,
-     not by outline: give the canvas a 3% step and the cards stop needing
-     to be drawn. */
-  --color-background: #f7f7f8;
-  --color-foreground: #101010;
-  --color-muted: #f5f5f6;
-  /* Kept in step with `--ui-muted-base` below, which is what actually wins. */
-  --color-muted-foreground: #63636d;
-  --color-border: #ececee;
+  /* Deel canvas. Cool gray #F8F9FB behind white cards, not a warm sheet.
+     Cards separate by a 1px #EAECF0 hairline — Deel never uses a drop
+     shadow as the card's edge. */
+  --color-page: #f8f9fb;
+  --color-background: #f8f9fb;
+  --color-foreground: #101828;
+  --color-muted: #f2f4f7;
+  /* Deel gray-500. Kept in step with `--ui-muted-base` below. */
+  --color-muted-foreground: #667085;
+  --color-border: #eaecf0;
 
   /* "Brand" is ink now: black CTAs, gray chips. Kept as a scale so the
      existing bg-brand-* / text-brand-* call sites shift in place. */
@@ -146,12 +143,24 @@
   --color-signal-ink: #101010;
 
   /* Positive delta green (the only saturated color in the system) */
-  --color-positive: #16a34a;
+  --color-positive: #12b76a;
+
+  /* Deel status badges — soft fill, saturated ink. Status IS a pill;
+     buttons and cards are not. */
+  --badge-success-bg: #ecfdf3;
+  --badge-success-fg: #027a48;
+  --badge-warning-bg: #fffaeb;
+  --badge-warning-fg: #b54708;
+  --badge-danger-bg: #fef3f2;
+  --badge-danger-fg: #b42318;
+  --badge-neutral-bg: #f2f4f7;
+  --badge-neutral-fg: #344054;
+  --color-link: #0e9f6e;
 
   /* Semantic states. Danger is a muted brick, never alarm-red; unread is the
      single accent used by every unread indicator in the app. */
   --color-danger: #b84136;
-  --color-unread: #5f7d00;
+  --color-unread: #12b76a;
 
   /* Marketing v2 palette — electric azure over deep navy for the hero
      band, white content sections on the shared neutral tokens. Never use
@@ -180,18 +189,18 @@
      valued from our brand — monochrome ink primary, neutral accents,
      pastel chart ramp. The vendored components/ui primitives read these. */
   --color-card: #ffffff;
-  --color-card-foreground: #101010;
+  --color-card-foreground: #101828;
   --color-popover: #ffffff;
-  --color-popover-foreground: #101010;
-  --color-primary: #131316;
+  --color-popover-foreground: #101828;
+  --color-primary: #0c111d;
   --color-primary-foreground: #ffffff;
-  --color-secondary: #f5f5f6;
-  --color-secondary-foreground: #101010;
-  --color-accent: #f0f0f2;
-  --color-accent-foreground: #101010;
-  --color-destructive: #b84136;
-  --color-input: #ececee;
-  --color-ring: #8b8b94;
+  --color-secondary: #f2f4f7;
+  --color-secondary-foreground: #101828;
+  --color-accent: #f2f4f7;
+  --color-accent-foreground: #101828;
+  --color-destructive: #b42318;
+  --color-input: #d0d5dd;
+  --color-ring: #98a2b3;
   --color-chart-1: #d9e8fa;
   --color-chart-2: #d5efde;
   --color-chart-3: #faeec7;
@@ -206,13 +215,13 @@
      the row is active. So the surface goes quiet and the chip does the work
      (`[data-slot="sidebar-menu-button"] > svg` further down). */
   --color-sidebar: #ffffff;
-  --color-sidebar-foreground: #101010;
-  --color-sidebar-primary: #131316;
+  --color-sidebar-foreground: #101828;
+  --color-sidebar-primary: #0c111d;
   --color-sidebar-primary-foreground: #ffffff;
-  --color-sidebar-accent: #f2f2f4;
-  --color-sidebar-accent-foreground: #101010;
-  --color-sidebar-border: #ececed;
-  --color-sidebar-ring: #8b8b94;
+  --color-sidebar-accent: #f2f4f7;
+  --color-sidebar-accent-foreground: #101828;
+  --color-sidebar-border: #eaecf0;
+  --color-sidebar-ring: #98a2b3;
 
   --radius-pill: 9999px;
 }
@@ -224,15 +233,12 @@
    run yet, and on the logged-out site — which is why personalising is
    additive rather than a second theme to maintain. */
 :root {
-  --ui-radius-card: 1.25rem;
-  /* The app window's own corner. See `.app-slab`. */
-  --ui-radius-app: 1.75rem;
-  /* Fields and small surfaces. Deliberately NOT a pill: buttons and chips are
-     round (see ui/button.tsx), but a pill is wrong for anything you type more
-     than a word into — a multi-line box with 9999px corners is a lozenge with
-     text falling out of both ends. 0.75rem is the same family, one step down. */
-  --ui-radius-control: 0.75rem;
-  --ui-radius-tile: 0.75rem;
+  /* Deel: 12px cards, 9px controls. These fallbacks MUST equal
+     resolveTokens(DEFAULT_APPEARANCE) so the first paint matches. */
+  --ui-radius-card: 0.750rem;
+  --ui-radius-app: 0.750rem;
+  --ui-radius-control: 0.563rem;
+  --ui-radius-tile: 0.563rem;
   --ui-radius-pill: 9999px;
   --ui-gap: 0.75rem;
   --ui-pad: 1.25rem;
@@ -245,9 +251,10 @@
      boundary, and a shadow soft enough to look good is not strong enough to do
      that: the first pass came out as text floating in a void. The hairline
      draws the edge, the shadow says which side of it is on top. */
-  --ui-surface-shadow: 0 1px 2px rgb(16 16 18 / 0.04),
-    0 8px 24px -14px rgb(16 16 18 / 0.16);
-  --ui-surface-border: 1px solid transparent;
+  /* Flat / Deel: the hairline is the card. A shadow here would be a second
+     edge and read as the old soft-surface language. */
+  --ui-surface-shadow: none;
+  --ui-surface-border: 1px solid var(--color-border);
   /* What the provider's "soft" surface resolves its border to, per theme —
      see SURFACES in src/lib/appearance.ts. */
   --ui-surface-edge: 1px solid transparent;
@@ -261,7 +268,7 @@
   --ui-surface-tile-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6);
   --ui-font-scale: 1;
   --ui-motion-scale: 1;
-  --ui-heading-weight: 700;
+  --ui-heading-weight: 600;
   --ui-sidebar-width: 16rem;
   /* Typefaces. The fallbacks below reproduce the shipped pairing exactly, so
      the logged-out site and the pre-hydration paint render the design we ship
@@ -270,8 +277,9 @@
     var(--font-instrument), "Inter", -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --ui-font-display:
-    var(--font-space-grotesk), var(--font-instrument), "Inter", sans-serif;
-  --ui-icon-stroke: 2;
+    var(--font-instrument), "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ui-icon-stroke: 1.75;
   /* How far secondary text is pushed toward the foreground or the background.
      Exactly one is ever non-zero, and both are zero by default — a mix of 0%
      in sRGB returns the base colour byte for byte. */
@@ -1183,56 +1191,42 @@ body {
   overflow: hidden;
 }
 
-/* Nav rows are pills, like every other interactive thing in the product.
-   Declared here rather than in the vendored sidebar so one edit reaches the
-   button, the sub-button and anything either of them is composed into. */
+/* Deel nav rows: 8px corners, gray selected band, bare outline icons.
+   The lime circle on the glyph was the previous identity and it is the
+   first thing that made this rail look like a different product. */
 [data-slot="sidebar-menu-button"],
 [data-slot="sidebar-menu-sub-button"] {
   min-height: var(--ui-row-height);
-  border-radius: var(--ui-radius-pill);
+  border-radius: var(--ui-radius-control);
+  color: #475467;
 }
-
-/* ── The nav row's circular icon chip ────────────────────────────────────
-   Cyberlock's signature and the thing that makes its rail readable without a
-   background colour of its own: every row's glyph sits in its own circle, and
-   the ACTIVE row's circle fills with the accent. It is a much better active
-   indicator than a tinted row — a filled circle is unmissable at a glance and
-   survives the rail collapsing to icons, which a row tint does not.
-
-   Done here rather than at the ~30 call sites that render a nav glyph, so it
-   reaches Inbox, Chat, favourites, spaces and anything added later without
-   any of them having to know. */
-[data-slot="sidebar-menu-button"] > svg:first-child {
+:root[data-theme="dark"] [data-slot="sidebar-menu-button"],
+:root[data-theme="dark"] [data-slot="sidebar-menu-sub-button"] {
+  color: #98a2b3;
+}
+[data-slot="sidebar-menu-button"] > svg:first-child,
+[data-slot="sidebar-menu-sub-button"] > svg:first-child {
   box-sizing: content-box;
-  padding: 0.4375rem;
-  border-radius: 9999px;
-  /* Resting glyphs are BARE. A grey coin behind every icon made the rail a
-     column of buttons before anything was chosen — the chip fill is reserved
-     for the one row that earned it (active = lime), which is also what makes
-     that fill legible as state rather than decoration. The padding stays so
-     the active circle lands without the row shifting. */
+  padding: 0;
+  border-radius: 0;
   background: transparent;
+  color: inherit;
+}
+[data-slot="sidebar-menu-button"]:hover,
+[data-slot="sidebar-menu-sub-button"]:hover {
+  background: var(--color-sidebar-accent);
   color: var(--color-sidebar-foreground);
-  transition:
-    background-color 0.18s ease,
-    color 0.18s ease;
 }
-[data-slot="sidebar-menu-button"]:hover > svg:first-child {
-  background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
-}
-[data-slot="sidebar-menu-button"][data-active="true"] > svg:first-child {
-  background: var(--color-signal-lime);
-  color: var(--color-signal-ink);
-}
-/* The row itself stops shouting once the chip is doing it: an active row is a
-   filled circle and a heavier label, not a grey band. Two active indicators
-   on one row is one too many. */
-[data-slot="sidebar-menu-button"][data-active="true"] {
-  background: transparent;
+[data-slot="sidebar-menu-button"][data-active="true"],
+[data-slot="sidebar-menu-sub-button"][data-active="true"] {
+  background: var(--color-sidebar-accent);
+  color: var(--color-sidebar-foreground);
   font-weight: 600;
 }
-[data-slot="sidebar-menu-button"][data-active="true"]:hover {
-  background: var(--color-sidebar-accent);
+[data-slot="sidebar-menu-button"][data-active="true"] > svg:first-child,
+[data-slot="sidebar-menu-sub-button"][data-active="true"] > svg:first-child {
+  background: transparent;
+  color: inherit;
 }
 
 /* The unread counter as an ink coin — a filled circle with the count knocked
@@ -1672,11 +1666,11 @@ body {
   align-items: center;
   gap: 0.125rem;
   padding: 0.2rem;
-  border-radius: 9999px;
+  border-radius: var(--ui-radius-control);
   background: var(--color-muted);
 }
 .segmented > * {
-  border-radius: 9999px;
+  border-radius: calc(var(--ui-radius-control) - 0.1rem);
   padding: 0.3rem 0.85rem;
   font-size: 0.8125rem;
   line-height: 1.25rem;
@@ -1756,16 +1750,16 @@ body {
   box-shadow: none;
 }
 
-/* Interactive-card hover: a quiet lift with a soft, wide shadow. */
+/* Deel cards don't lift. Hover is a hairline + muted fill, never a jump. */
 .lift {
   transition:
-    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.2s ease;
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 .lift:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px -16px rgb(16 16 18 / 0.22);
+  transform: none;
+  box-shadow: none;
+  border-color: color-mix(in srgb, var(--color-foreground) 12%, var(--color-border));
 }
 @media (prefers-reduced-motion: reduce) {
   .lift,
@@ -1908,15 +1902,14 @@ body {
      into it, and the whole app reads as a hole. Charcoal has a temperature and
      lets a surface sit ON something. The canvas and the surfaces stay one step
      apart the way they do in light, just with the values pulled down. */
-  --color-page: #0b0b0c;
-  /* The slab register both references sit in: a near-black window with panels
-     one step up. #1a1a1d was a mid-charcoal that read as "dark mode"; this
-     reads as the object the backdrop's lime is framing. */
-  --color-background: #131316;
-  --color-foreground: #f4f4f5;
-  --color-muted: #222226;
-  --color-muted-foreground: #a1a1aa;
-  --color-border: #2e2e34;
+  /* Deel's dark mode: navy-ink canvas, elevated slate cards. Not charcoal
+     with a lime mark — that was the previous identity. */
+  --color-page: #0c111d;
+  --color-background: #0c111d;
+  --color-foreground: #f9fafb;
+  --color-muted: #1d2939;
+  --color-muted-foreground: #98a2b3;
+  --color-border: #344054;
   /* Dark's surface edge: 4% white. Not a rim — an antialiasing stabilizer
      for a card one value-step above the canvas. Anything brighter is the
      "white border around everything" the founder killed. */
@@ -1934,32 +1927,41 @@ body {
   --color-brand-700: var(--ui-accent-700-dark, #ededf0);
 
   --color-danger: #e0685c;
-  --color-unread: #d9f24e;
+  --color-unread: #32d583;
 
   /* Shell fusion tones flip with the theme (ink inverts, like the
      template's dark scheme, kept in our hex language). */
-  --color-card: #1e1e22;
-  --color-card-foreground: #f4f4f5;
-  --color-popover: #26262b;
-  --color-popover-foreground: #f4f4f5;
-  --color-primary: #ededf0;
-  --color-primary-foreground: #101010;
-  --color-secondary: #26262a;
-  --color-secondary-foreground: #f4f4f5;
-  --color-accent: #2c2c32;
-  --color-accent-foreground: #f4f4f5;
-  --color-destructive: #e0685c;
-  --color-input: #33333a;
-  --color-ring: #7a7a86;
-  /* Part of the slab in dark too — same surface as the content beside it. */
-  --color-sidebar: #131316;
-  --color-sidebar-foreground: #f4f4f5;
-  --color-sidebar-primary: #ffffff;
-  --color-sidebar-primary-foreground: #131316;
-  --color-sidebar-accent: #26262c;
-  --color-sidebar-accent-foreground: #ffffff;
-  --color-sidebar-border: #2b2b31;
-  --color-sidebar-ring: #7a7a86;
+  --color-card: #1d2939;
+  --color-card-foreground: #f9fafb;
+  --color-popover: #1d2939;
+  --color-popover-foreground: #f9fafb;
+  --color-primary: #f9fafb;
+  --color-primary-foreground: #0c111d;
+  --color-secondary: #1d2939;
+  --color-secondary-foreground: #f9fafb;
+  --color-accent: #344054;
+  --color-accent-foreground: #f9fafb;
+  --color-destructive: #f97066;
+  --color-input: #344054;
+  --color-ring: #667085;
+  --color-sidebar: #0c111d;
+  --color-sidebar-foreground: #f9fafb;
+  --color-sidebar-primary: #f9fafb;
+  --color-sidebar-primary-foreground: #0c111d;
+  --color-sidebar-accent: #1d2939;
+  --color-sidebar-accent-foreground: #f9fafb;
+  --color-sidebar-border: #344054;
+  --color-sidebar-ring: #667085;
+
+  --badge-success-bg: #054f31;
+  --badge-success-fg: #6ce9a6;
+  --badge-warning-bg: #542c0d;
+  --badge-warning-fg: #fec84b;
+  --badge-danger-bg: #7a271a;
+  --badge-danger-fg: #fda29b;
+  --badge-neutral-bg: #344054;
+  --badge-neutral-fg: #d0d5dd;
+  --color-link: #32d583;
 }
 
 /* Slow drift for gradient scene blobs. */

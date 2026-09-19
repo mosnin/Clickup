@@ -35,7 +35,7 @@
 // `dashboard/page-header.tsx` floats over every Work page — because a bare
 // strip here and a floating capsule one dashboard over is the two halves of
 // one product disagreeing about what their own chrome looks like. It closes
-// with the same `CapsuleCluster` (bell + avatar) Work's capsule closes with,
+// with the same `CapsuleCluster` (search + bell + avatar) Work's bar closes with,
 // imported rather than rebuilt, so notifications mean the same thing and cost
 // the same one subscription in both places.
 
@@ -85,8 +85,8 @@ export function ChatTopChrome({ onOpenNav }: { onOpenNav: () => void }) {
   const rooms = useMemo(() => channels ?? [], [channels]);
 
   return (
-    <header data-chat-top-chrome="" className="flex shrink-0 items-center px-2 pb-2 pt-2">
-      <div className="flex min-h-12 w-full items-center gap-2 rounded-full bg-card py-1.5 pl-4 pr-2 shadow-[var(--ui-shadow-md)]">
+    <header data-chat-top-chrome="" className="flex shrink-0 items-center border-b border-border bg-background px-3 pb-2.5 pt-2.5">
+      <div className="flex min-h-10 w-full items-center gap-2">
         <button
           type="button"
           // One control, two jobs, because they are the same job at two widths:
@@ -95,7 +95,7 @@ export function ChatTopChrome({ onOpenNav }: { onOpenNav: () => void }) {
           onClick={() => (isNarrow ? onOpenNav() : setSidebarOpen(!sidebarOpen))}
           aria-label={isNarrow ? "Show navigation" : "Toggle sidebar"}
           aria-expanded={isNarrow ? undefined : sidebarOpen}
-          className="chat-icon-button tap-target -ml-2 shrink-0"
+          className="chat-icon-button tap-target -ml-1 shrink-0"
         >
           <PanelLeft aria-hidden className="size-4" />
         </button>

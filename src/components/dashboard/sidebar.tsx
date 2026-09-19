@@ -197,21 +197,36 @@ function SidebarHeaderSwitcher() {
       : (tree?.personal?._id ?? tree?.currentClerkId ?? "personal");
 
   return (
-    <SidebarHeader>
-      {/* Work or Chat. Above the workspace switcher because it is the coarser
-          question — which application you are in, before which workspace. */}
-      <ModeSwitcher collapsible className="mb-1" />
-      {/* The grab handle for the whole navigation.
-          Holding the sidebar body still works — it has to, because that is the
-          gesture the dock teaches — but a hold is undiscoverable and easy to
-          fumble, so there is also a target that says what it does and starts
-          dragging on contact. Handled in components/appearance/sidebar-dock.tsx,
-          which listens on the container and looks for this attribute. */}
+    <SidebarHeader className="gap-2">
+      {/* Deel's wordmark sits at the top of the rail, not the workspace
+          orb. "operate." is the product; the workspace switcher is whose
+          work you are in, one row down. */}
+      <Link
+        href="/dashboard"
+        className="flex items-center gap-1 px-1.5 pt-1 text-lg font-semibold tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+      >
+        <span className="group-data-[collapsible=icon]:hidden">
+          operate<span className="text-muted-foreground">.</span>
+        </span>
+        <span className="hidden group-data-[collapsible=icon]:inline">o.</span>
+      </Link>
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new CustomEvent("open-command-palette"))}
+        className="flex h-9 w-full items-center gap-2 rounded-[var(--ui-radius-control)] bg-muted px-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground group-data-[collapsible=icon]:hidden"
+      >
+        <Search className="size-4 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1 text-left">Search</span>
+        <kbd className="rounded px-1 font-mono text-tiny text-muted-foreground/80">
+          ⌘K
+        </kbd>
+      </button>
+      <ModeSwitcher collapsible className="mb-0" />
       <span
         data-nav-grab
         title="Drag to move the navigation"
         aria-hidden
-        className="mx-auto mb-1 hidden h-3 w-8 cursor-grab touch-none items-center justify-center rounded-full text-muted-foreground/40 transition-colors hover:bg-sidebar-accent hover:text-foreground active:cursor-grabbing md:flex"
+        className="mx-auto hidden h-3 w-8 cursor-grab touch-none items-center justify-center rounded-[var(--ui-radius-control)] text-muted-foreground/40 transition-colors hover:bg-sidebar-accent hover:text-foreground active:cursor-grabbing md:flex"
       >
         <svg viewBox="0 0 16 4" className="h-1 w-4" aria-hidden>
           {[2, 8, 14].map((x) => (
@@ -220,9 +235,9 @@ function SidebarHeaderSwitcher() {
         </svg>
       </span>
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex w-full min-w-0 items-center gap-2 rounded-full py-1 pl-1 pr-2 text-left outline-none hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:pr-1">
+        <DropdownMenuTrigger className="flex w-full min-w-0 items-center gap-2 rounded-[var(--ui-radius-control)] py-1.5 pl-1.5 pr-2 text-left outline-none hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:pr-1">
           <Orb seed={currentSeed} label={currentName} shape="squircle" size="sm" />
-          <span className="min-w-0 flex-1 truncate font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-sidebar-foreground group-data-[collapsible=icon]:hidden">
             {currentName}
           </span>
           <ChevronDown className="size-3.5 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
@@ -361,8 +376,11 @@ function SidebarContentBody() {
 }
 
 function SearchMenuItem() {
+  // The header already has Deel's filled search field when the rail is
+  // open. This row exists only for the collapsed icon rail — a 48px column
+  // cannot hold the field, and hiding search entirely would lose ⌘K.
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem className="hidden group-data-[collapsible=icon]:block">
       <SidebarMenuButton
         type="button"
         onClick={() => window.dispatchEvent(new CustomEvent("open-command-palette"))}
@@ -371,7 +389,6 @@ function SearchMenuItem() {
         <Search className="text-muted-foreground" />
         <span>Search</span>
       </SidebarMenuButton>
-      <SidebarMenuBadge>⌘K</SidebarMenuBadge>
     </SidebarMenuItem>
   );
 }
@@ -1397,11 +1414,8 @@ function SidebarFooterBody() {
       <div className="px-1">
         <ThemeToggle collapsed={collapsed} />
       </div>
-      <div className="flex items-center gap-2 rounded-full px-1 py-0.5 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:px-0">
-        <UserButton afterSignOutUrl="/" />
-        <span className="flex-1 truncate text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-          Account
-        </span>
+      <SidebarAccountRow collapsed={collapsed} />
+      <div className="flex items-center justify-end px-1 group-data-[collapsible=icon]:justify-center">
         {/* Desktop collapse/expand affordance — stays visible on the icon
             rail too, otherwise a collapsed sidebar has no obvious way back.
             Mobile gets its own trigger inside PageHeader. */}
@@ -1426,6 +1440,32 @@ function SidebarFooterBody() {
  * The full studio still exists for the wider settings (typefaces, navigation,
  * motion) and is one click further in, from the inspector.
  */
+function SidebarAccountRow({ collapsed }: { collapsed: boolean }) {
+  const me = useQuery(api.users.current, {});
+  const name = me?.name?.trim() || "Account";
+  const email = me?.email?.trim();
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 rounded-[var(--ui-radius-control)] px-1.5 py-1.5",
+        collapsed && "flex-col justify-center px-0",
+      )}
+    >
+      <UserButton afterSignOutUrl="/" />
+      <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+        <p className="truncate text-sm font-medium leading-tight text-sidebar-foreground">
+          {name}
+        </p>
+        {email ? (
+          <p className="truncate text-tiny leading-tight text-muted-foreground">
+            {email}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function AppearanceMenuItem() {
   const { active, setActive } = useCustomize();
   const { isMobile, setOpenMobile } = useSidebar();

@@ -8,7 +8,6 @@ import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import {
   ArrowRight,
-  ArrowUpRight,
   Plus,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -27,17 +26,14 @@ import {
 import Counter, { placesFor } from "@/components/counter";
 import {
   INSTRUMENT_META,
-  InstrumentCard,
-  InstrumentFigure,
-  InstrumentHeader,
-  InstrumentSegbar,
-  InstrumentShine,
 } from "@/components/dashboard/instrument-card";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { DeelWidgetFooter, DeelWidgetHeader } from "@/components/dashboard/deel-widget";
 import { InviteCards } from "@/components/dashboard/invite-cards";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { PriorityDot } from "@/components/dashboard/priority";
 import { Button } from "@/components/ui/button";
+import { DEEL_BADGE, deelLongDate, greetingFor } from "@/lib/deel-chrome";
 import { Checkbox } from "@/components/ui/checkbox";
 import GradientText from "@/components/gradient-text";
 import { errorMessage } from "@/lib/errors";
@@ -51,7 +47,6 @@ import { Panel } from "@/components/dashboard/panel";
 import { StyledSurface } from "@/components/dashboard/styled-surface";
 import { GaugeArc } from "@/components/charts/gauge-arc";
 import { StackedColumns } from "@/components/charts/stacked-columns";
-import { NotchCard } from "@/components/dashboard/notch-card";
 import { useOfferMintablePanels } from "@/components/appearance/mintable-panels";
 import { OnlyWhenList } from "@/components/appearance/only-when";
 import { builtInPanelQuestion } from "@/lib/built-in-panel";
@@ -91,12 +86,12 @@ type MyWorkRow = MyWorkRows[number];
 // screen.
 const HEALTH_CHIP: Record<
   NonNullable<Project["projectStatus"]>,
-  { label: string; dot: string }
+  { label: string; badge: string }
 > = {
-  on_track: { label: "On track", dot: "bg-signal-lime" },
-  at_risk: { label: "At risk", dot: "bg-signal-yellow" },
-  off_track: { label: "Off track", dot: "bg-danger" },
-  paused: { label: "Paused", dot: "bg-muted-foreground/50" },
+  on_track: { label: "On track", badge: DEEL_BADGE.success },
+  at_risk: { label: "At risk", badge: DEEL_BADGE.warning },
+  off_track: { label: "Off track", badge: DEEL_BADGE.danger },
+  paused: { label: "Paused", badge: DEEL_BADGE.neutral },
 };
 
 
@@ -107,12 +102,12 @@ const HEALTH_CHIP: Record<
 // the shared lg:grid-cols-3 grid (static classes so Tailwind sees them);
 // the default order reproduces the original page composition exactly.
 const WIDGETS = [
-  { id: "stats", title: "Overview stats", span: "lg:col-span-3" },
-  { id: "today", title: "Today's tasks", span: "lg:col-span-2" },
-  { id: "activity", title: "Recent activity", span: "" },
+  { id: "stats", title: "Your work", span: "lg:col-span-3" },
+  { id: "today", title: "Your tasks", span: "lg:col-span-2" },
+  { id: "activity", title: "Pulse", span: "" },
   { id: "projects", title: "Projects", span: "lg:col-span-3" },
-  { id: "live", title: "Live feed", span: "lg:col-span-2" },
-  { id: "agents", title: "Agents online", span: "" },
+  { id: "live", title: "Activity", span: "lg:col-span-2" },
+  { id: "agents", title: "Agents", span: "" },
 ] as const;
 type BuiltInId = (typeof WIDGETS)[number]["id"];
 /**
@@ -496,16 +491,10 @@ export default function DashboardHome() {
     );
     switch (id) {
       case "stats":
-        // Not surfaced, and the exception is the honest one: this widget is a
-        // ROW of four cards rather than a card, so a frame around it would be
-        // a card containing cards. Its members are already the surface.
-        return (
+        return surfaced(
           <StatsCards
             completions7d={ov.completions7d}
             me={ov.me}
-            // The one thing on the whole screen that says what to do NEXT
-            // rather than how much there is. Same source as Today's tasks —
-            // the soonest-due open task assigned to you.
             nextTask={
               myWork && myWork.length > 0
                 ? {
@@ -514,7 +503,7 @@ export default function DashboardHome() {
                   }
                 : null
             }
-          />
+          />,
         );
       case "today":
         return surfaced(<TodaysTasks rows={myWork ?? undefined} />);
@@ -527,10 +516,8 @@ export default function DashboardHome() {
           />,
         );
       case "projects":
-        // NOT surfaced: the reference's campaign grid is cards ON the slab
-        // under a section heading, not cards inside a card.
-        return (
-          <ProjectCards projects={ov.projects} totalProjects={ov.totalProjects} />
+        return surfaced(
+          <ProjectCards projects={ov.projects} totalProjects={ov.totalProjects} />,
         );
       case "live":
         return surfaced(<LiveFeed ticker={ov.ticker} />);
@@ -548,37 +535,40 @@ export default function DashboardHome() {
       {/* The greeting IS the capsule — the reference's welcome bar says
           "Welcome!" in the chrome, not in a section below it. The two page
           actions ride the capsule for the same reason: one bar owns the top. */}
-      <PageHeader
-        headline={false}
-        title={
-          user?.firstName ? `Welcome back, ${user.firstName}.` : "Welcome back."
-        }
-        context={
-          overview?.me ? (
-            <span className="hidden truncate @2xl:inline">
-              {overview.me.dueToday} due today · {overview.me.overdue} overdue
-            </span>
-          ) : undefined
-        }
-        actions={
-          <>
-            {/* Hidden on phones: the sidebar footer carries the same
-                control, and a 390px capsule cannot afford a text link — it
-                was what folded the bar into a two-row blob. */}
-            <button
-              type="button"
-              onClick={() => setCustomizing((v) => !v)}
-              className="tap-target hidden text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline sm:block"
-            >
-              {customizing ? "Done" : "Customise"}
-            </button>
-            <Button size="sm" className="tap-target h-9 gap-1.5" onClick={openCommandPalette}>
-              <Plus className="size-4" />
-              <span className="hidden sm:inline">New task</span>
-            </Button>
-          </>
-        }
-      />
+      <PageHeader headline={false} hideTitle title="Home" />
+
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div className="min-w-0">
+          <h1 className="text-balance text-[1.75rem] font-semibold leading-tight tracking-tight text-foreground">
+            {greetingFor(user?.firstName)}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {deelLongDate()}
+            {overview?.me ? (
+              <span className="hidden @xl:inline">
+                {" · "}
+                {overview.me.dueToday} due today
+                {overview.me.overdue > 0
+                  ? ` · ${overview.me.overdue} overdue`
+                  : ""}
+              </span>
+            ) : null}
+          </p>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCustomizing((v) => !v)}
+            className="tap-target hidden h-9 items-center rounded-[var(--ui-radius-control)] px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground sm:inline-flex"
+          >
+            {customizing ? "Done" : "Customize homepage"}
+          </button>
+          <Button size="sm" className="h-9 gap-1.5" onClick={openCommandPalette}>
+            <Plus className="size-4" />
+            <span className="hidden sm:inline">New task</span>
+          </Button>
+        </div>
+      </div>
 
       <InviteCards />
 
@@ -849,129 +839,58 @@ function StatsCards({
   }, []);
   const shown = (n: number) => (armed ? n : 0);
 
+  const metrics = [
+    { label: "Open", value: me.open, hint: me.open === 1 ? "task" : "tasks" },
+    { label: "Due today", value: me.dueToday, hint: "assigned to you" },
+    {
+      label: "Overdue",
+      value: me.overdue,
+      hint: me.overdue === 1 ? "needs you" : "need you",
+      warn: me.overdue > 0,
+    },
+    {
+      label: "Done · 7 days",
+      value: doneThisWeek,
+      hint: `${activeDays} ${activeDays === 1 ? "day" : "days"}`,
+    },
+  ] as const;
+
   return (
-    // The instrument bento (founder direction: the nullframe card language,
-    // inside the app, with room to breathe). Same three-column geometry and
-    // 24px seams as before so the grid still lines up with the panels below;
-    // what changed is the material — hairline cards on the app's own tokens
-    // instead of saturated blocks, mono meta-rows, dot-matrix figures, and
-    // ONE human sentence per card in normal case. The signal palette
-    // retreats to the marks that mean something: an LED that only lights
-    // when work is overdue, a green bar of days.
-    <div ref={armRef} className="h-full">
-    <Stagger className="grid h-full grid-cols-2 grid-rows-2 gap-6 @3xl:grid-cols-3">
-      {/* ── The headline instrument ────────────────────────────────────── */}
-      <StaggerItem lift className="col-span-2 row-span-2 min-h-0">
-        <InstrumentCard
-          label="My work"
-          tag={me.open > 0 ? "OPEN" : "CLEAR"}
-          armed={armed}
-          index={0}
-          href="/dashboard/my-work"
-          footer={
-            nextTask ? (
-              <span className="flex items-center gap-2">
-                <span className="min-w-0 flex-1">
-                  <span className="block font-mono text-[0.6875rem] uppercase leading-none tracking-[0.1em] text-muted-foreground">
-                    Next up
-                  </span>
-                  <span className="mt-1.5 line-clamp-1 block text-sm font-medium text-foreground">
-                    {nextTask.title}
-                  </span>
-                </span>
-                <ArrowRight
-                  aria-hidden
-                  className="size-3.5 shrink-0 text-muted-foreground"
-                />
-              </span>
-            ) : (
-              <span className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-                <span>Nothing is waiting on you</span>
-                <ArrowRight aria-hidden className="size-3.5" />
-              </span>
-            )
-          }
-        >
-          <InstrumentFigure value={me.open} className="text-[4.5rem]">
-            <Counter
-              value={shown(me.open)}
-              places={placesFor(me.open)}
-              fontSize={72}
-              padding={4}
-              fontWeight={600}
-            />
-          </InstrumentFigure>
-          <span className="mt-3 block text-sm leading-relaxed text-muted-foreground">
-            open {me.open === 1 ? "task" : "tasks"} assigned to you
-          </span>
-        </InstrumentCard>
-      </StaggerItem>
-
-      {/* ── Due today ──────────────────────────────────────────────────── */}
-      <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-1">
-        <InstrumentCard
-          label="Due today"
-          // The LED earns its light: it pulses only while something is
-          // actually past its date.
-          led={me.overdue > 0 ? "orange" : undefined}
-          tag={me.overdue > 0 ? "LATE" : "ON TIME"}
-          armed={armed}
-          index={1}
-          href="/dashboard/my-work"
-          className="p-4"
-          contentClassName="justify-center py-2"
-        >
-          <InstrumentFigure value={me.dueToday} className="text-[2.5rem]">
-            <Counter
-              value={shown(me.dueToday)}
-              places={placesFor(me.dueToday)}
-              fontSize={40}
-              padding={3}
-              fontWeight={600}
-            />
-          </InstrumentFigure>
-          <span className="mt-2 block text-[0.8125rem] leading-snug text-muted-foreground">
-            {me.overdue > 0
-              ? `${me.overdue} also past ${me.overdue === 1 ? "its" : "their"} date`
-              : "nothing is late"}
-          </span>
-        </InstrumentCard>
-      </StaggerItem>
-
-      {/* ── Done this week ─────────────────────────────────────────────── */}
-      <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-2">
-        <InstrumentCard
-          label="Done — 7 days"
-          tag="LOG"
-          armed={armed}
-          index={2}
-          href="/dashboard/my-work"
-          className="p-4"
-          contentClassName="justify-center py-2"
-        >
-          <InstrumentFigure value={doneThisWeek} className="text-[2.5rem]">
-            <Counter
-              value={shown(doneThisWeek)}
-              places={placesFor(doneThisWeek)}
-              fontSize={40}
-              padding={3}
-              fontWeight={600}
-            />
-          </InstrumentFigure>
-          <span className="mt-2 block text-[0.8125rem] leading-snug text-muted-foreground">
-            completed across {activeDays} {activeDays === 1 ? "day" : "days"}
-          </span>
-          {/* One cell per day, lit where anything shipped — the week you can
-              read at a glance. */}
-          <InstrumentSegbar
-            lit={Array.from({ length: 7 }, (_, i) => armed && (week[i] ?? 0) > 0)}
-            tone="green"
-            className="mt-2.5"
-            label={`work shipped on ${activeDays} of the last 7 days`}
-          />
-        </InstrumentCard>
-      </StaggerItem>
-    </Stagger>
+    <div ref={armRef} className="flex h-full min-w-0 flex-col">
+      <DeelWidgetHeader
+        title="Your work"
+        subtitle={
+          nextTask ? `Next up: ${nextTask.title}` : "Nothing is waiting on you"
+        }
+        href="/dashboard/my-work"
+      />
+      <div className="grid flex-1 grid-cols-2 divide-x divide-y divide-border border-t border-border @xl:grid-cols-4 @xl:divide-y-0">
+        {metrics.map((m) => (
+          <Link
+            key={m.label}
+            href="/dashboard/my-work"
+            className="flex min-h-0 flex-col justify-center px-5 py-4 hover:bg-muted/40"
+          >
+            <p className="text-xs font-medium text-muted-foreground">{m.label}</p>
+            <p
+              className={cn(
+                "mt-1 text-[1.75rem] font-semibold leading-none tracking-tight",
+                "warn" in m && m.warn && "text-[var(--badge-danger-fg)]",
+              )}
+            >
+              <Counter
+                value={shown(m.value)}
+                places={placesFor(m.value)}
+                fontSize={28}
+                padding={2}
+                fontWeight={600}
+              />
+            </p>
+            <p className="mt-1.5 text-xs text-muted-foreground">{m.hint}</p>
+          </Link>
+        ))}
+      </div>
+      <DeelWidgetFooter href="/dashboard/my-work">View my work</DeelWidgetFooter>
     </div>
   );
 }
@@ -1018,13 +937,14 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
 
   return (
     <div className="flex h-full min-w-0 flex-col">
-      <InstrumentHeader
-        label={<h3 className="contents">Today&apos;s tasks</h3>}
-        tag={
+      <DeelWidgetHeader
+        title="Your tasks"
+        subtitle={
           dueTasks.length > 0
-            ? `${dueTasks.length} of ${rows?.length ?? 0}`
-            : undefined
+            ? `${dueTasks.length} due today`
+            : "Nothing due today"
         }
+        href="/dashboard/my-work"
       />
       {rows === undefined ? (
         <div className="divide-y divide-border">
@@ -1109,16 +1029,7 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
           })}
         </Stagger>
       )}
-      <Link
-        href="/dashboard/my-work"
-        className={cn(
-          INSTRUMENT_META,
-          "mt-auto flex items-center justify-between gap-2 border-t border-border px-5 py-3.5 font-medium text-muted-foreground transition-colors hover:text-foreground",
-        )}
-      >
-        Open my work
-        <ArrowRight aria-hidden className="size-3.5" />
-      </Link>
+      <DeelWidgetFooter href="/dashboard/my-work">View all tasks</DeelWidgetFooter>
     </div>
   );
 }
@@ -1165,10 +1076,7 @@ function PulsePanel({
   });
   return (
     <div className="flex h-full min-w-0 flex-col">
-      <InstrumentHeader
-        label={<h3 className="contents">Pulse</h3>}
-        tag="Last 7 days"
-      />
+      <DeelWidgetHeader title="Pulse" subtitle="Last 7 days" />
       <div className="grid min-h-0 flex-1 items-center gap-6 p-4 @xl:grid-cols-[minmax(10rem,1fr)_2fr]">
         <GaugeArc
           value={done}
@@ -1207,12 +1115,7 @@ function PulsePanel({
 function HealthChip({ status }: { status: Project["projectStatus"] }) {
   const chip = status ? HEALTH_CHIP[status] : null;
   if (!chip) return <span className="text-sm text-muted-foreground">—</span>;
-  return (
-    <span className="ui-chip inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 font-mono text-micro font-medium uppercase tracking-[0.08em]">
-      <span aria-hidden className={cn("size-1.5 rounded-full", chip.dot)} />
-      {chip.label}
-    </span>
-  );
+  return <span className={chip.badge}>{chip.label}</span>;
 }
 
 
@@ -1252,194 +1155,82 @@ function ProjectCards({
   projects: Project[];
   totalProjects: number;
 }) {
-  // The lime card is the project that needs attention soonest: most overdue
-  // work, then nearest target date. Never "the first one" — a highlight that
-  // never moves is decoration. Chosen BEFORE the responsive slice and sorted
-  // to the front of it: cards 3 and 4 hide on narrow containers, and an
-  // urgent project hidden by the container width was the section silently
-  // dropping its one defining rule exactly where it matters most (a phone).
-  const pool = projects.slice(0, 4);
-  const urgent = [...pool].sort(
-    (a, b) =>
-      b.overdue - a.overdue ||
-      (a.targetDate ?? Infinity) - (b.targetDate ?? Infinity),
-  )[0];
-  const shown =
-    urgent === undefined
-      ? pool
-      : [urgent, ...pool.filter((p) => p !== urgent)];
-
-  // Same arm-on-view contract as the stat instruments: each card fires one
-  // staggered shine sweep when the section scrolls into reading distance.
-  const [armed, setArmed] = useState(false);
-  const armRef = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    const el = armRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setArmed(true);
-          io.disconnect();
-        }
-      },
-      { threshold: 0.2 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
+  const shown = projects.slice(0, 8);
   return (
-    <section ref={armRef} className="flex h-full min-w-0 flex-col">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="font-title text-xl font-bold tracking-tight">Projects</h2>
-        <Link
-          href="/dashboard/projects"
-          className={cn(
-            INSTRUMENT_META,
-            "tap-target font-medium text-muted-foreground transition-colors hover:text-foreground",
-          )}
-        >
-          View all {totalProjects}
-        </Link>
-      </div>
-      {/* `flex-1 auto-rows-fr`: the card rows absorb the tile's slack instead
-          of leaving a dead strip under the grid — a taller tile means taller
-          cards (each has a bottom action band, so stretching reads composed),
-          never emptiness with a resize grip floating in it. */}
-      <Stagger className="grid flex-1 auto-rows-fr grid-cols-1 gap-3 @2xl:grid-cols-2">
-        {shown.map((project, index) => {
-          const lime = project === urgent;
-          return (
-            <StaggerItem
-              key={project.listId}
-              lift
-              className={cn(
-                "h-full min-w-0",
-                // The fourth card exists only where the grid is two-across.
-                // Stacked single-file it pushed the section past the tallest
-                // tile the screen allows, and a section that scrolls its own
-                // cards is a hole wearing a scrollbar.
-                index === 3 && "hidden @2xl:block",
-                // And the third only where there is at least a phablet of
-                // room — two cards on a phone, three on a tablet, four on a
-                // desktop. The count follows the container, like everything
-                // else in a panel.
-                index === 2 && "hidden @sm:block",
-              )}
-            >
-              <NotchCard
-                tone={lime ? "lime" : "panel"}
-                corner={
-                  <Link
-                    href={`/dashboard/l/${project.listId}`}
-                    aria-label={`Open ${project.name}`}
-                    className="tap-target flex size-9 items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-muted"
-                  >
-                    <ArrowUpRight aria-hidden className="size-4" />
-                  </Link>
-                }
-                className="h-full"
-              >
-                <InstrumentShine armed={armed} index={index} />
-                <div className="grid grid-cols-[1fr_auto]">
-                  <div className="min-w-0 p-4 pr-2">
-                    {/* Clears the notch: the title starts below the scoop's
-                        reach so a long name never runs under the control. */}
-                    <p className="line-clamp-2 pr-10 font-title text-base font-bold leading-snug">
-                      {project.name}
-                    </p>
-                    <p
-                      className={cn(
-                        INSTRUMENT_META,
-                        "mt-1.5 truncate",
-                        lime ? "opacity-60" : "text-muted-foreground",
-                      )}
+    <div className="flex h-full min-w-0 flex-col">
+      <DeelWidgetHeader
+        title="Projects"
+        subtitle={totalProjects === 1 ? "1 project" : `${totalProjects} projects`}
+        href="/dashboard/projects"
+      />
+      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
+        {shown.length === 0 ? (
+          <EmptyState
+            compact
+            title="No projects yet"
+            message="Create a project and it will land in this table."
+          />
+        ) : (
+          <table className="w-full min-w-[36rem] border-t border-border text-left text-sm">
+            <thead>
+              <tr className="border-b border-border text-xs font-medium text-muted-foreground">
+                <th className="px-5 py-2.5 font-medium">Name</th>
+                <th className="px-3 py-2.5 font-medium">Status</th>
+                <th className="px-3 py-2.5 font-medium">Progress</th>
+                <th className="px-3 py-2.5 font-medium">Due</th>
+                <th className="px-5 py-2.5 font-medium">Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((project) => (
+                <tr
+                  key={project.listId}
+                  className="border-b border-border last:border-b-0 hover:bg-muted/40"
+                >
+                  <td className="px-5 py-3">
+                    <Link
+                      href={`/dashboard/l/${project.listId}`}
+                      className="block min-w-0"
                     >
-                      {project.place}
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                      {project.projectStatus && (
-                        <HealthChip status={project.projectStatus} />
-                      )}
+                      <span className="block truncate font-medium text-foreground hover:underline">
+                        {project.name}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {project.place}
+                      </span>
+                    </Link>
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <HealthChip status={project.projectStatus} />
                       {project.overdue > 0 && (
-                        <span className="ui-chip px-2 py-1 font-mono text-micro font-medium uppercase tracking-[0.08em]">
+                        <span className={DEEL_BADGE.danger}>
                           {project.overdue} overdue
                         </span>
                       )}
-                      {project.targetDate !== undefined && (
-                        <span
-                          className={cn(
-                            "ui-chip px-2 py-1 font-mono text-micro uppercase tracking-[0.08em]",
-                            !lime && "text-muted-foreground",
-                          )}
-                        >
-                          {formatDate(project.targetDate)}
-                        </span>
-                      )}
                     </div>
-                  </div>
-                  <div className={cn(
-                      // `pt-14`, not centred: the scoop owns the cell's top
-                      // 56px, and a centred figure on a short card lands
-                      // exactly under it — "31/48" rendered as "3…" behind
-                      // the notch until this cleared it.
-                      "flex min-w-[6.5rem] flex-col items-center justify-start border-l px-3 pb-4 pt-14",
-                      lime ? "border-current/15" : "border-border",
-                    )}>
-                    {/* The dot-matrix figure, same face as the stat
-                        instruments — plain glyphs, so unlike the odometer it
-                        needs no sr-only twin. */}
-                    <span
-                      className="whitespace-nowrap text-[1.75rem] leading-none"
-                      style={{
-                        fontFamily: "var(--font-doto), monospace",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {project.done}
-                      <span className="text-sm opacity-50">
-                        /{project.total}
-                      </span>
-                    </span>
-                    <span
-                      className={cn(
-                        INSTRUMENT_META,
-                        "mt-1.5 font-medium",
-                        lime ? "opacity-60" : "text-muted-foreground",
-                      )}
-                    >
-                      done
-                    </span>
-                  </div>
-                </div>
-                <div className={cn("flex items-center justify-between gap-3 border-t px-4 py-2.5", lime ? "border-current/15" : "border-border")}>
-                  <span
-                    className={cn(
-                      INSTRUMENT_META,
-                      lime ? "opacity-60" : "text-muted-foreground",
-                    )}
-                  >
-                    active {timeAgo(project.lastActivityAt)}
-                  </span>
-                  <Link
-                    href={`/dashboard/l/${project.listId}`}
-                    className={cn(
-                      "rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform hover:scale-[1.03]",
-                      lime
-                        ? "bg-signal-ink text-signal-lime"
-                        : "bg-primary text-primary-foreground",
-                    )}
-                  >
-                    Open board
-                  </Link>
-                </div>
-              </NotchCard>
-            </StaggerItem>
-          );
-        })}
-      </Stagger>
-    </section>
+                  </td>
+                  <td className="px-3 py-3 tabular-nums text-muted-foreground">
+                    {project.done}/{project.total}
+                  </td>
+                  <td className="px-3 py-3 text-muted-foreground">
+                    {project.targetDate !== undefined
+                      ? formatDate(project.targetDate)
+                      : "—"}
+                  </td>
+                  <td className="px-5 py-3 text-muted-foreground">
+                    {timeAgo(project.lastActivityAt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      <DeelWidgetFooter href="/dashboard/projects">
+        View all projects
+      </DeelWidgetFooter>
+    </div>
   );
 }
 function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
@@ -1448,9 +1239,9 @@ function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
     <div className="flex h-full min-w-0 flex-col">
       {/* The LED earns its light here the way it does on Due today: it
           pulses only while there is actually activity to read. */}
-      <InstrumentHeader
-        label={<h3 className="contents">Live</h3>}
-        led={visible.length > 0 ? "lime" : undefined}
+      <DeelWidgetHeader
+        title="Activity"
+        subtitle={visible.length > 0 ? "Live across your work" : "Quiet right now"}
       />
       {/* Fills the tile and scrolls when shrunk — the same contract as every
           other block, so a resized tile never shows a dead band below rows. */}
@@ -1536,10 +1327,12 @@ function AgentsCard({ agents }: { agents: Overview["agents"] }) {
   const online = agents.filter((a) => a.online).length;
   const card = (
     <div className="flex h-full min-w-0 flex-col">
-      <InstrumentHeader
-        label={<h3 className="contents">Agents</h3>}
-        led={online > 0 ? "lime" : undefined}
-        tag={agents.length > 0 ? `${online} online` : undefined}
+      <DeelWidgetHeader
+        title="Agents"
+        subtitle={
+          agents.length > 0 ? `${online} online` : "No agents yet"
+        }
+        href="/dashboard/agents"
       />
       {/* Own scroll region + bottom padding clearing the resize grip's
           corner, so the last row is read, not bisected. */}
@@ -1586,10 +1379,9 @@ function AgentsCard({ agents }: { agents: Overview["agents"] }) {
           </Stagger>
         )}
       </div>
+      <DeelWidgetFooter href="/dashboard/agents">View all agents</DeelWidgetFooter>
     </div>
   );
-  // Presence dots already say "live" — a rainbow border around the card was
-  // a fourth colour system announcing what the rows announce quietly.
   return card;
 }
 
