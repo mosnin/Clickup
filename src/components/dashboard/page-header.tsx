@@ -104,7 +104,6 @@ export function PageHeader({
         </div>
         <div className="flex min-w-0 flex-shrink-0 items-center gap-1.5">
           {actions}
-          <CapsuleCluster />
         </div>
       </div>
       {children && <div className="pt-2">{children}</div>}

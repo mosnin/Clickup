@@ -61,11 +61,11 @@
      shadow rather than by the absence of tint — which means the shadow has to
      be able to carry that alone, and `--ui-surface-shadow` below is stronger
      than it was for exactly this reason. */
-  /* Deel canvas. Cool gray #F8F9FB behind white cards, not a warm sheet.
-     Cards separate by a 1px #EAECF0 hairline — Deel never uses a drop
-     shadow as the card's edge. */
-  --color-page: #f8f9fb;
-  --color-background: #f8f9fb;
+  /* Deel 2025 canvas (Mobbin home): a cool sheet with a lavender wash
+     in the top bar, white cards, #EAECF0 hairline — no drop-shadow edge. */
+  --color-page: #f7f6fa;
+  --color-background: #f7f6fa;
+  --color-top-nav: #f0ecf8;
   --color-foreground: #101828;
   --color-muted: #f2f4f7;
   /* Deel gray-500. Kept in step with `--ui-muted-base` below. */
@@ -1171,6 +1171,61 @@ body {
   }
 }
 
+.app-top-nav {
+  --app-top-nav-height: 3.5rem;
+  flex-shrink: 0;
+  background: var(--color-top-nav);
+  color: var(--color-foreground);
+}
+.app-mark {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #0c111d;
+  color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+:root[data-theme="dark"] .app-mark {
+  background: #f9fafb;
+  color: #0c111d;
+}
+.app-top-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2rem;
+  padding: 0 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+  white-space: nowrap;
+}
+.app-top-pill:hover {
+  color: var(--color-foreground);
+  background: rgb(0 0 0 / 0.04);
+}
+:root[data-theme="dark"] .app-top-pill:hover {
+  background: rgb(255 255 255 / 0.06);
+}
+.app-top-pill-on,
+.app-top-pill[aria-current="page"] {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.06);
+}
+:root[data-theme="dark"] .app-top-pill-on,
+:root[data-theme="dark"] .app-top-pill[aria-current="page"] {
+  background: #2a2438;
+  box-shadow: none;
+}
+
 .app-slab {
   /* FULL BLEED — the inset "window on a backdrop" frame is gone by founder
      decree: a border around the entire application read as ornament, not
@@ -1902,10 +1957,11 @@ body {
      into it, and the whole app reads as a hole. Charcoal has a temperature and
      lets a surface sit ON something. The canvas and the surfaces stay one step
      apart the way they do in light, just with the values pulled down. */
-  /* Deel's dark mode: navy-ink canvas, elevated slate cards. Not charcoal
-     with a lime mark — that was the previous identity. */
-  --color-page: #0c111d;
-  --color-background: #0c111d;
+  /* Deel's 2025 dark home (Mobbin): purple-black window, not charcoal
+     with a lime mark and not a flat navy admin theme. */
+  --color-page: #12101a;
+  --color-background: #12101a;
+  --color-top-nav: #1a1430;
   --color-foreground: #f9fafb;
   --color-muted: #1d2939;
   --color-muted-foreground: #98a2b3;

@@ -4,7 +4,8 @@ import { AppearanceProvider } from "@/components/appearance/appearance-provider"
 import { CustomizeProvider } from "@/components/appearance/customize-provider";
 import { MintablePanelsProvider } from "@/components/appearance/mintable-panels";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { SHELL_INSET, SHELL_PAGE, SHELL_PROVIDER } from "@/lib/shell";
+import { SHELL_BODY, SHELL_INSET, SHELL_PAGE, SHELL_PROVIDER } from "@/lib/shell";
+import { AppTopNav } from "@/components/dashboard/app-top-nav";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import ProjectsPage from "@/app/dashboard/projects/page";
 import { galleryData } from "./stubs/convex-react";
@@ -210,12 +211,15 @@ function Page() {
         <CustomizeProvider>
           <MintablePanelsProvider>
             <SidebarProvider className={SHELL_PROVIDER}>
+              <AppTopNav />
+              <div className={SHELL_BODY}>
               <DashboardSidebar />
               <SidebarInset className={SHELL_INSET}>
                 <div className={SHELL_PAGE}>
                   <ProjectsPage />
                 </div>
               </SidebarInset>
+              </div>
             </SidebarProvider>
           </MintablePanelsProvider>
         </CustomizeProvider>

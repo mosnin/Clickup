@@ -43,7 +43,6 @@ import { useMemo } from "react";
 import { PanelLeft } from "lucide-react";
 import { ChatSearchLauncher } from "@/components/chat/search";
 import { useRoster } from "@/components/chat/presence";
-import { CapsuleCluster } from "@/components/dashboard/page-header";
 import type { ResolvableAuthor } from "@/lib/buzz/search-query";
 import { useChatShell } from "./chat-shell";
 import { useChannel, useChannels } from "./channel-data";
@@ -126,10 +125,6 @@ export function ChatTopChrome({ onOpenNav }: { onOpenNav: () => void }) {
           people={people}
           className="shrink-0"
         />
-
-        {/* The capsule's right end, same as Work's: notifications, then you.
-            One chrome, both modes — see the module comment. */}
-        <CapsuleCluster />
       </div>
     </header>
   );

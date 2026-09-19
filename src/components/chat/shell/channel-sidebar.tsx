@@ -32,7 +32,6 @@ import {
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { ModeSwitcher } from "@/components/chat/mode-switcher";
 import { ChannelBrowserDialog } from "@/components/chat/channel-browser";
 import { cn } from "@/lib/utils";
 import { useChatShell } from "./chat-shell";
@@ -97,17 +96,10 @@ export function ChannelSidebar() {
       <div className="flex min-h-0 w-full flex-1 flex-col">
         {/* Pinned header */}
         <div className="px-2 pb-1 pt-1.5">
-          {/* Work or Chat, at the top of the sidebar — the same place, and the
-              same control, as the Work dashboard puts it. Mode is the coarsest
-              question the navigation answers, so it sits above the search that
-              only reaches into this one. It lived in the top chrome first,
-              which put the way out of the application in a different corner
-              from the way around it. */}
-          <ModeSwitcher className="mb-1.5" />
           {/* Which community, in the same slot and the same shape as the Work
-              sidebar's workspace control. This replaced a 56px icon rail —
-              see community-switcher.tsx for why a second navigation for the
-              same question had to go rather than be restyled. */}
+              top bar's workspace control. Work ⇄ Chat now lives on AppTopNav
+              — Deel's module pills — so this rail does not ask the same
+              question twice. */}
           <CommunitySwitcher />
           <button
             type="button"

@@ -17,7 +17,8 @@ import { CustomizeProvider } from "@/components/appearance/customize-provider";
 import { MintablePanelsProvider } from "@/components/appearance/mintable-panels";
 import { StyleStudio } from "@/components/appearance/style-studio";
 import { QueryErrorBoundary } from "@/components/dashboard/query-error-boundary";
-import { SHELL_INSET, SHELL_PAGE, SHELL_PROVIDER } from "@/lib/shell";
+import { AppTopNav } from "@/components/dashboard/app-top-nav";
+import { SHELL_BODY, SHELL_INSET, SHELL_PAGE, SHELL_PROVIDER } from "@/lib/shell";
 
 export default async function DashboardLayout({
   children,
@@ -65,6 +66,8 @@ export default async function DashboardLayout({
           <NoSupportWidget />
           <CommandPalette />
           <AgentOnlineWatcher />
+          <AppTopNav />
+          <div className={SHELL_BODY}>
           <DashboardSidebar />
           {/* overflow-x-hidden: SidebarInset is the app's real scroll
               container; without it, any too-wide child would let the whole
@@ -94,6 +97,7 @@ export default async function DashboardLayout({
           <DockSlot />
           {/* The inspector. Beside the work, never instead of it. */}
           <StyleStudio />
+          </div>
         </SidebarProvider>
       </MintablePanelsProvider>
       </CustomizeProvider>

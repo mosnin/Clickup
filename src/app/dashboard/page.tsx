@@ -9,6 +9,7 @@ import { useMutation, useQuery } from "convex/react";
 import {
   ArrowRight,
   Plus,
+  Search,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { cn } from "@/lib/utils";
@@ -27,7 +28,6 @@ import Counter, { placesFor } from "@/components/counter";
 import {
   INSTRUMENT_META,
 } from "@/components/dashboard/instrument-card";
-import { PageHeader } from "@/components/dashboard/page-header";
 import { DeelWidgetFooter, DeelWidgetHeader } from "@/components/dashboard/deel-widget";
 import { InviteCards } from "@/components/dashboard/invite-cards";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -532,34 +532,48 @@ export default function DashboardHome() {
         <WelcomeReveal />
       </Suspense>
 
-      {/* The greeting IS the capsule — the reference's welcome bar says
-          "Welcome!" in the chrome, not in a section below it. The two page
-          actions ride the capsule for the same reason: one bar owns the top. */}
-      <PageHeader headline={false} hideTitle title="Home" />
-
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-        <div className="min-w-0">
-          <h1 className="text-balance text-[1.75rem] font-semibold leading-tight tracking-tight text-foreground">
-            {greetingFor(user?.firstName)}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {deelLongDate()}
-            {overview?.me ? (
-              <span className="hidden @xl:inline">
-                {" · "}
-                {overview.me.dueToday} due today
-                {overview.me.overdue > 0
-                  ? ` · ${overview.me.overdue} overdue`
-                  : ""}
-              </span>
-            ) : null}
-          </p>
+      {/* Deel 2025 home (Mobbin): centered "Hey, Alex 👋", two scope
+          pills, one wide search, then the widget cards. The top bar is
+          already the chrome — no second page header. */}
+      <div className="mx-auto flex max-w-3xl flex-col items-center pt-4 text-center sm:pt-8">
+        <h1 className="text-balance text-[2rem] font-semibold leading-tight tracking-tight text-foreground sm:text-[2.25rem]">
+          {greetingFor(user?.firstName)}{" "}
+          <span aria-hidden>👋</span>
+        </h1>
+        <p className="sr-only">
+          {deelLongDate()}
+          {overview?.me
+            ? `. ${overview.me.dueToday} due today${
+                overview.me.overdue > 0 ? `, ${overview.me.overdue} overdue` : ""
+              }`
+            : ""}
+        </p>
+        <div className="mt-5 flex items-center gap-1.5">
+          <span className="app-top-pill app-top-pill-on">
+            All
+          </span>
+          <Link href="/dashboard/my-work" className="app-top-pill">
+            Tasks
+          </Link>
+          <Link href="/dashboard/projects" className="app-top-pill">
+            Projects
+          </Link>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <button
+          type="button"
+          onClick={openCommandPalette}
+          className="mt-6 flex h-11 w-full max-w-xl items-center gap-3 rounded-full border border-border bg-card px-4 text-left text-sm text-muted-foreground shadow-sm transition-colors hover:border-foreground/20 hover:text-foreground"
+        >
+          <Search className="size-4 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1 truncate">
+            Search for tasks, pages, or ask…
+          </span>
+        </button>
+        <div className="mt-4 flex items-center gap-2">
           <button
             type="button"
             onClick={() => setCustomizing((v) => !v)}
-            className="tap-target hidden h-9 items-center rounded-[var(--ui-radius-control)] px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground sm:inline-flex"
+            className="tap-target hidden h-9 items-center rounded-full px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground sm:inline-flex"
           >
             {customizing ? "Done" : "Customize homepage"}
           </button>

@@ -4,18 +4,16 @@ import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
-// Every button in the product is an 8px rounded rectangle.
-//
-// Deel's primary is #0C111D, 14px medium, 36–40px tall, radius 8px — never a
-// pill. The size variants must not re-state a corner or they quietly win
-// over the token. Radius tracks `--ui-radius-control` so the appearance
-// slider still reaches every button.
+// Deel's 2025 CTAs (Mobbin people / payroll / modals) are black pills —
+// "+ Add people", "Continue", "Review and pay". Radius is `--ui-radius-pill`
+// so a size variant cannot quietly square a corner. Fields stay on
+// `--ui-radius-control`; a multi-line box with 9999px corners is a lozenge.
 const buttonVariants = cva(
   // `tap-target`: every size here paints under the 44px thumb floor (xs 24 to
   // lg 40), so on a coarse pointer each button carries the invisible halo that
   // brings its hit area up to the floor. Desktop is untouched — the halo only
   // exists under `pointer: coarse`.
-  "tap-target inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--ui-radius-control)] text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  "tap-target inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--ui-radius-pill)] text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
     variants: {
       variant: {

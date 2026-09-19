@@ -76,19 +76,19 @@ import { RunningTimerChip } from "@/components/dashboard/running-timer-chip";
 import { TemplatePicker } from "@/components/dashboard/template-picker";
 import { NewWorkspaceDialog } from "@/components/dashboard/new-workspace-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { ModeSwitcher } from "@/components/chat/mode-switcher";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { useProjectExpanded } from "@/lib/project-collapse";
 import { useNav } from "@/lib/use-nav";
 import { userSpacesFromTree } from "@/lib/user-spaces";
+import { isHomePath } from "@/lib/deel-nav";
+import {
+  useCurrentContext,
+  useTreeQuery,
+  type SidebarTree,
+} from "@/lib/workspace-context";
 
-type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
 type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
-
-function useTreeQuery() {
-  return useQuery(api.sidebar.tree, {});
-}
 
 // (No local initial-of helper: every identity mark in this tree renders
 // through <Orb label=…> / <Monogram>, which derive the initial and the
@@ -120,66 +120,31 @@ export function DashboardSidebar() {
     setOpenMobile(false);
   }, [pathname, setOpenMobile]);
 
+  // Deel's 2025 home has no left rail. The tree is the People/Settings
+  // secondary column — it appears once you are in Work. Mobile still gets
+  // the sheet so the tree is reachable from a phone on Home.
   return (
-    // data-mode-surface="nav" pairs with the Chat shell's rail: same
-    // view-transition-name on both, so crossing between the dashboards morphs
-    // this into that rather than cross-fading the viewport. See the Work ⇄ Chat
-    // block in globals.css.
+    <div className={cn(isHomePath(pathname) && "md:hidden")}>
+    {/* data-mode-surface="nav" pairs with the Chat shell's rail: same
+        view-transition-name on both, so crossing between the dashboards morphs
+        this into that rather than cross-fading the viewport. See the Work ⇄ Chat
+        block in globals.css. */}
     <Sidebar collapsible="icon" data-mode-surface="nav">
       <SidebarHeaderSwitcher />
       <SidebarContentBody />
       <SidebarFooterBody />
       <SidebarRail />
     </Sidebar>
+    </div>
   );
 }
 
-// ── Header: workspace switcher ──────────────────────────────────────────
+// ── Header ──────────────────────────────────────────────────────────────
 //
-// "Current" is content-derived: any /dashboard/w|s|l|d|wb/[id] URL is
-// resolved against the tree to find which workspace (if any) owns that id,
-// so opening a workspace-owned space/list/task/doc/whiteboard keeps the
-// header switcher and content tree pinned to that workspace instead of
-// silently collapsing to the personal space. Picking a different entry in
-// the switcher just navigates — there is no separate client-side "selected
-// workspace" state.
-
-// `wb` must be tried before `w` so `/dashboard/wb/:id` doesn't get cut short
-// at the `w` alternative (JS regex alternation backtracks, but ordering the
-// longer alternative first keeps this obviously correct without relying on
-// it).
-const CONTENT_ID_RE = /^\/dashboard\/(?:wb|w|s|l|d)\/([^/]+)/;
-
-function useCurrentContext(tree: SidebarTree | null | undefined) {
-  const pathname = usePathname();
-  const id = CONTENT_ID_RE.exec(pathname)?.[1];
-
-  // Reverse lookup from every id a workspace subtree owns (the workspace
-  // itself, its spaces, projects, space-direct + project-nested lists, docs,
-  // whiteboards) back to that workspace. Built once per tree/pathname
-  // change rather than walked on every render.
-  const idToWorkspace = useMemo(() => {
-    const map = new Map<string, SidebarTree["workspaces"][number]>();
-    for (const workspace of tree?.workspaces ?? []) {
-      map.set(workspace._id, workspace);
-      for (const space of workspace.spaces) {
-        map.set(space._id, workspace);
-        for (const list of space.lists) map.set(list._id, workspace);
-        for (const page of space.pages) map.set(page._id, workspace);
-        for (const wb of space.whiteboards) map.set(wb._id, workspace);
-        for (const project of space.projects) {
-          map.set(project._id, workspace);
-          for (const list of project.lists) map.set(list._id, workspace);
-        }
-      }
-    }
-    return map;
-  }, [tree]);
-
-  const workspace = id ? idToWorkspace.get(id) : undefined;
-  if (workspace) return { kind: "workspace" as const, workspace };
-  return { kind: "personal" as const };
-}
+// The product mark, search, and Work/Chat switch live in AppTopNav now —
+// Deel's 2025 chrome put them on the lavender bar. This rail is the
+// secondary column (spaces tree), so the header is only whose tree you
+// are looking at.
 
 function SidebarHeaderSwitcher() {
   const tree = useTreeQuery();
@@ -198,30 +163,6 @@ function SidebarHeaderSwitcher() {
 
   return (
     <SidebarHeader className="gap-2">
-      {/* Deel's wordmark sits at the top of the rail, not the workspace
-          orb. "operate." is the product; the workspace switcher is whose
-          work you are in, one row down. */}
-      <Link
-        href="/dashboard"
-        className="flex items-center gap-1 px-1.5 pt-1 text-lg font-semibold tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
-      >
-        <span className="group-data-[collapsible=icon]:hidden">
-          operate<span className="text-muted-foreground">.</span>
-        </span>
-        <span className="hidden group-data-[collapsible=icon]:inline">o.</span>
-      </Link>
-      <button
-        type="button"
-        onClick={() => window.dispatchEvent(new CustomEvent("open-command-palette"))}
-        className="flex h-9 w-full items-center gap-2 rounded-[var(--ui-radius-control)] bg-muted px-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground group-data-[collapsible=icon]:hidden"
-      >
-        <Search className="size-4 shrink-0" aria-hidden />
-        <span className="min-w-0 flex-1 text-left">Search</span>
-        <kbd className="rounded px-1 font-mono text-tiny text-muted-foreground/80">
-          ⌘K
-        </kbd>
-      </button>
-      <ModeSwitcher collapsible className="mb-0" />
       <span
         data-nav-grab
         title="Drag to move the navigation"

@@ -1,18 +1,13 @@
 // Deel chrome helpers — greeting, long date, status classes.
 //
 // Pure, so the home header and any other surface can share one voice, and
-// so the copy can be unit-tested without mounting React. Times of day match
-// Deel's homepage ("Good morning, Maya") rather than a generic "Welcome back".
+// so the copy can be unit-tested without mounting React. The 2025 Deel home
+// (Mobbin) says "Hey, Alex" — not a time-of-day greeting. The wave lives
+// in the page so this string stays testable.
 
-export function greetingFor(
-  name: string | undefined | null,
-  now: Date = new Date(),
-): string {
-  const hour = now.getHours();
-  const part =
-    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+export function greetingFor(name: string | undefined | null): string {
   const trimmed = name?.trim();
-  return trimmed ? `${part}, ${trimmed}` : part;
+  return trimmed ? `Hey, ${trimmed}` : "Hey";
 }
 
 /** Deel writes dates as "Saturday, 19 September" (day-first, long month). */
