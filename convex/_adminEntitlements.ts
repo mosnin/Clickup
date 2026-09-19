@@ -66,6 +66,40 @@ export async function isComplimentaryScope(
   return await isPlatformAdminClerkId(ctx, ws.ownerClerkId);
 }
 
+// A hold that only blocks Clerk writes is not a hold: the product's agents
+// authenticate with API keys and never pass through requireIdentity. The
+// same principal complimentary already follows (the personal user, or the
+// workspace owner) must go dark, or a suspended staff account keeps an
+// unpaid fleet and a suspended tenant keeps consuming the product.
+export async function assertAgentScopeNotHeld(
+  ctx: QueryCtx | MutationCtx,
+  scopeType: "user" | "workspace",
+  scopeId: string,
+): Promise<void> {
+  if (scopeType === "user") {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", scopeId))
+      .first();
+    if (user?.suspendedAt) {
+      throw new ConvexError("Account suspended");
+    }
+    return;
+  }
+  const ws = await ctx.db.get(scopeId as Id<"workspaces">);
+  if (!ws) throw new ConvexError("Workspace not found");
+  if (ws.suspendedAt) {
+    throw new ConvexError("Workspace suspended");
+  }
+  const owner = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", ws.ownerClerkId))
+    .first();
+  if (owner?.suspendedAt) {
+    throw new ConvexError("Account suspended");
+  }
+}
+
 export async function assertCanCreateAgent(
   ctx: QueryCtx | MutationCtx,
   parentType: "user" | "workspace",

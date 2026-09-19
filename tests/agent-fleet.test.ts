@@ -386,6 +386,67 @@ describe("who may grant a fleet", () => {
       });
     expect(maxAgents).toBe(MAX_FLEET_SIZE);
   });
+
+  it("refuses a non-positive daily budget at grant time", async () => {
+    const { t, holderId } = await setup();
+    await expect(
+      t.withIdentity(OWNER).mutation(api.agentGrants.grantFleet, {
+        holderAgentId: holderId,
+        maxAgents: 2,
+        role: "member",
+        dailyActionLimit: 0,
+      }),
+    ).rejects.toThrow(/positive integer/i);
+    await expect(
+      t.withIdentity(OWNER).mutation(api.agentGrants.grantFleet, {
+        holderAgentId: holderId,
+        maxAgents: 2,
+        role: "member",
+        dailyActionLimit: -5,
+      }),
+    ).rejects.toThrow(/positive integer/i);
+  });
+
+  it("stops provisioning and worker keys when the workspace owner is held", async () => {
+    const { t, holderId } = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        clerkId: OWNER.subject,
+        email: "fleet-owner@example.com",
+      });
+    });
+    await t.withIdentity(OWNER).mutation(api.agentGrants.grantFleet, {
+      holderAgentId: holderId,
+      maxAgents: 3,
+      role: "member",
+      dailyActionLimit: 1000,
+    });
+    const worker = await t.mutation(api.agentGrants.provisionAgent, {
+      apiKey: HOLDER_KEY,
+      name: "Before hold",
+      ...keyMaterial(),
+    });
+    expect(worker.name).toBe("Before hold");
+
+    await t.run(async (ctx) => {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", OWNER.subject))
+        .unique();
+      await ctx.db.patch(user!._id, { suspendedAt: Date.now() });
+    });
+
+    await expect(
+      t.mutation(api.agentGrants.provisionAgent, {
+        apiKey: HOLDER_KEY,
+        name: "After hold",
+        ...keyMaterial(),
+      }),
+    ).rejects.toThrow(/account suspended/i);
+    await expect(
+      t.query(api.agentGrants.myFleet, { apiKey: HOLDER_KEY }),
+    ).rejects.toThrow(/account suspended/i);
+  });
 });
 
 describe("the fleet is visible", () => {

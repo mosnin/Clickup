@@ -140,6 +140,49 @@ describe("x402 settlement", () => {
     expect(wallet?.lifetimeCredits).toBe(1000);
   });
 
+  it("refuses to credit more than the atomic payment bought", async () => {
+    const t = convexTest(schema, modules);
+    // Default price is 1000 atomic / credit, so 1_000_000 atomic buys 1000.
+    await expect(
+      t.mutation(internal.x402.applySettlement, {
+        scopeType: "user",
+        scopeId: "user_over",
+        asset: "USDC",
+        network: "base-sepolia",
+        amountAtomic: "1000000",
+        creditsGranted: 1001,
+        nonce: "0xovercredit",
+        facilitator: "mock",
+      }),
+    ).rejects.toThrow(/exceeds what this payment bought/i);
+
+    const wallet = await t.run(async (ctx) =>
+      ctx.db
+        .query("agentWallets")
+        .withIndex("by_scope", (q) =>
+          q.eq("scopeType", "user").eq("scopeId", "user_over"),
+        )
+        .unique(),
+    );
+    expect(wallet).toBeNull();
+  });
+
+  it("refuses a settlement whose amount is not a number", async () => {
+    const t = convexTest(schema, modules);
+    await expect(
+      t.mutation(internal.x402.applySettlement, {
+        scopeType: "user",
+        scopeId: "user_bad_amt",
+        asset: "USDC",
+        network: "base-sepolia",
+        amountAtomic: "not-a-number",
+        creditsGranted: 1,
+        nonce: "0xbadamt",
+        facilitator: "mock",
+      }),
+    ).rejects.toThrow(/invalid settlement amount/i);
+  });
+
   it("lets a legitimate retry settle after prior FAILED attempts on the same nonce", async () => {
     const t = convexTest(schema, modules);
     // Two transient failures recorded the nonce (observability rows).

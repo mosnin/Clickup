@@ -38,7 +38,9 @@ export default defineSchema({
     imageUrl: v.optional(v.string()),
     onboardedAt: v.optional(v.number()),
     // Platform-admin account controls. A suspended user is blocked from
-    // every authenticated operation (enforced in _authz.requireIdentity).
+    // every authenticated operation (Clerk via _authz.requireIdentity, and
+    // agent API keys via _agentAuth.requireAgentByKey — a hold that only
+    // stops humans leaves the fleet running).
     suspendedAt: v.optional(v.number()),
     suspendedReason: v.optional(v.string()),
   })
