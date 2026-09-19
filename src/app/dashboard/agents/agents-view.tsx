@@ -416,71 +416,46 @@ function AgentsStatBento({
 
   return (
     <div className="space-y-3">
-      <Stagger className="grid grid-cols-2 grid-rows-2 gap-4 @3xl:grid-cols-3">
-        {/* ── The headline block: agents online right now ─────────────── */}
-        <StaggerItem lift className="col-span-2 row-span-2 min-h-0">
-          <div className="relative flex h-full min-h-[10rem] flex-col justify-between overflow-hidden rounded-2xl bg-signal-yellow p-5 text-signal-ink">
-            <span className="relative text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
-              Fleet
-            </span>
-            <span className="relative mt-3 min-w-0">
-              <span className="font-title block text-[3.5rem] font-bold leading-[0.85] tracking-tight">
-                <AnimatedNumber value={onlineCount} />
-              </span>
-              <span className="mt-1.5 block text-sm font-medium opacity-70">
-                {onlineCount === 1 ? "agent" : "agents"} online right now
-              </span>
-            </span>
-            <span className="relative mt-4 min-w-0 border-t border-current/20 pt-2.5">
-              <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-55">
-                Fleet size
-              </span>
-              <span className="mt-0.5 block text-sm font-semibold">
-                {totalCount} {totalCount === 1 ? "agent" : "agents"} total
-              </span>
-            </span>
+      <div className="overflow-hidden rounded-[var(--ui-radius-card)] border border-border bg-card">
+        <div className="grid grid-cols-2 divide-x divide-y divide-border @xl:grid-cols-4 @xl:divide-y-0">
+          <div className="px-5 py-4">
+            <p className="text-xs font-medium text-muted-foreground">Online</p>
+            <p className="mt-1 text-[1.75rem] font-semibold leading-none tracking-tight">
+              <AnimatedNumber value={onlineCount} />
+            </p>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              of {totalCount} {totalCount === 1 ? "agent" : "agents"}
+            </p>
           </div>
-        </StaggerItem>
-
-        {/* ── The two that move, stacked in one column ─────────────────── */}
-        <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-1">
-          <div className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-teal p-4 text-signal-ink">
-            <span className="flex items-center gap-3">
-              <span className="font-title block truncate text-[2.25rem] font-bold leading-[0.85] tracking-tight">
-                ${(spend?.cost7 ?? 0).toFixed(2)}
-              </span>
-            </span>
-            <span className="mt-auto border-t border-current/20 pt-2">
-              <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
-                Spend · 7d
-              </span>
-              <span className="mt-0.5 block text-tiny font-medium opacity-70">
-                {spend ? `$${spend.cost30.toFixed(2)} over 30d` : "no spend yet"}
-              </span>
-            </span>
+          <div className="px-5 py-4">
+            <p className="text-xs font-medium text-muted-foreground">Fleet</p>
+            <p className="mt-1 text-[1.75rem] font-semibold leading-none tracking-tight">
+              <AnimatedNumber value={totalCount} />
+            </p>
+            <p className="mt-1.5 text-xs text-muted-foreground">total agents</p>
           </div>
-        </StaggerItem>
-
-        <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-2">
-          <div className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-pink p-4 text-signal-ink">
-            <span className="flex items-center gap-3">
-              <span className="font-title block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
-                <AnimatedNumber value={spend?.runs7 ?? 0} />
-              </span>
-            </span>
-            <span className="mt-auto border-t border-current/20 pt-2">
-              <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
-                Runs · 7d
-              </span>
-              <span className="mt-0.5 block text-tiny font-medium opacity-70">
-                {spend && spend.tokens7 > 0
-                  ? `${compactNumber(spend.tokens7)} tokens`
-                  : "nothing run yet"}
-              </span>
-            </span>
+          <div className="px-5 py-4">
+            <p className="text-xs font-medium text-muted-foreground">Spend · 7d</p>
+            <p className="mt-1 text-[1.75rem] font-semibold leading-none tracking-tight">
+              ${(spend?.cost7 ?? 0).toFixed(2)}
+            </p>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {spend ? `$${spend.cost30.toFixed(2)} over 30d` : "no spend yet"}
+            </p>
           </div>
-        </StaggerItem>
-      </Stagger>
+          <div className="px-5 py-4">
+            <p className="text-xs font-medium text-muted-foreground">Runs · 7d</p>
+            <p className="mt-1 text-[1.75rem] font-semibold leading-none tracking-tight">
+              <AnimatedNumber value={spend?.runs7 ?? 0} />
+            </p>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {spend && spend.tokens7 > 0
+                ? `${compactNumber(spend.tokens7)} tokens`
+                : "nothing run yet"}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {spend && spend.topSpenders.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
