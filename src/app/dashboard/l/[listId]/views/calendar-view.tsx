@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import {
+  addDays,
   addMonths,
   endOfMonth,
   endOfWeek,
@@ -51,13 +52,27 @@ export function CalendarView({
     const start = startOfWeek(startOfMonth(cursor), { weekStartsOn: 0 });
     const end = endOfWeek(endOfMonth(cursor), { weekStartsOn: 0 });
     const days: Date[] = [];
-    for (let d = start; d <= end; d = new Date(d.getTime() + 86_400_000)) {
+    for (let d = start; d <= end; d = addDays(d, 1)) {
       days.push(d);
     }
     const rows: Date[][] = [];
     for (let i = 0; i < days.length; i += 7) rows.push(days.slice(i, i + 7));
     return rows;
   }, [cursor]);
+
+  const recurring = useQuery(api.scheduledTasks.calendarForList, {
+    listId,
+    start: weeks[0][0].getTime(),
+    end: addDays(weeks[weeks.length - 1][6], 1).getTime(),
+  });
+  const recurringByDay = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof recurring>>();
+    for (const occurrence of recurring ?? []) {
+      const key = format(new Date(occurrence.scheduledFor), "yyyy-MM-dd");
+      map.set(key, [...(map.get(key) ?? []), occurrence]);
+    }
+    return map;
+  }, [recurring]);
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, Doc<"tasks">[]>();
@@ -124,6 +139,12 @@ export function CalendarView({
         </div>
       </header>
 
+      <p className="text-xs text-muted-foreground">
+        {recurring === undefined ? "Loading recurring schedules… " : "Planned entries show recurring creation times in your local time. "}
+        <Link href={`/dashboard/l/${listId}/settings#recurring-schedules`} className="underline underline-offset-2">
+          Manage recurring schedules
+        </Link>
+      </p>
       {tasks.length === 0 && (
         <p className="text-sm text-muted-foreground">
           Click any day to schedule your first task.
@@ -144,10 +165,13 @@ export function CalendarView({
               {week.map((day) => {
                 const key = format(day, "yyyy-MM-dd");
                 const dayTasks = tasksByDay.get(key) ?? [];
+                const dayRecurring = recurringByDay.get(key) ?? [];
                 const inMonth = isSameMonth(day, cursor);
                 const today = isSameDay(day, new Date());
                 const isExpanded = expanded.has(key);
                 const shown = isExpanded ? dayTasks : dayTasks.slice(0, 3);
+                const shownRecurring = isExpanded ? dayRecurring : dayRecurring.slice(0, Math.max(0, 3 - shown.length));
+                const total = dayTasks.length + dayRecurring.length;
                 return (
                   <div
                     key={key}
@@ -186,7 +210,14 @@ export function CalendarView({
                           <TaskChip task={t} />
                         </li>
                       ))}
-                      {dayTasks.length > 3 && (
+                      {shownRecurring.map((occurrence) => (
+                        <li key={`${occurrence.scheduledTaskId}:${occurrence.scheduledFor}`}
+                          className="truncate px-1.5 py-0.5 text-tiny text-muted-foreground"
+                          title={`Planned creation: ${occurrence.title} at ${format(new Date(occurrence.scheduledFor), "HH:mm")}. Not yet a task.`}>
+                          Planned {format(new Date(occurrence.scheduledFor), "HH:mm")} · {occurrence.title}
+                        </li>
+                      ))}
+                      {total > 3 && (
                         <li>
                           <button
                             type="button"
@@ -203,7 +234,7 @@ export function CalendarView({
                           >
                             {isExpanded
                               ? "Show less"
-                              : `+${dayTasks.length - 3} more`}
+                              : `+${total - 3} more`}
                           </button>
                         </li>
                       )}

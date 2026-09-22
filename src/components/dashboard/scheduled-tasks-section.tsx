@@ -45,7 +45,7 @@ export function ScheduledTasksSection({ listId }: { listId: Id<"lists"> }) {
   const [creating, setCreating] = useState(false);
 
   return (
-    <section>
+    <section id="recurring-schedules">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Recurring schedules

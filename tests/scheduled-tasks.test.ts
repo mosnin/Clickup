@@ -193,6 +193,19 @@ describe("computeNextRunAt", () => {
       listId,
     });
     expect(tasks).toHaveLength(1);
+    expect(tasks[0].scheduledTaskId).toBe(scheduledTaskId);
+    expect(tasks[0].scheduledFor).toEqual(expect.any(Number));
+    await t.action(internal.scheduledTasks.materializeOne, { scheduledTaskId });
+    expect(await t.withIdentity(OWNER).query(api.tasks.listForList, { listId })).toHaveLength(1);
+    const preview = await t.withIdentity(OWNER).query(api.scheduledTasks.calendarForList, {
+      listId, start: Date.now(), end: Date.now() + 86400000,
+    });
+    expect(preview.length).toBeGreaterThan(0);
+    expect(preview[0]).toMatchObject({ scheduledTaskId, state: "planned" });
+    await expect(t.withIdentity({ subject: "outsider" }).query(api.scheduledTasks.calendarForList, {
+      listId, start: Date.now(), end: Date.now() + 86400000,
+    })).rejects.toThrow();
+
     expect(tasks[0]).toMatchObject({
       title: "Inspect agent health",
       assigneeClerkIds: [agentId],
