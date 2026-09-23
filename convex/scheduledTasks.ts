@@ -35,7 +35,8 @@ const priorityValidator = v.union(
   v.literal("low"),
 );
 
-type Cadence = "hourly" | "daily" | "weekly" | "monthly";
+import { computeNextRunAt, projectOccurrences, type Cadence } from "./_recurringCalendar";
+export { computeNextRunAt } from "./_recurringCalendar";
 
 function scheduleFailureSummary(error: string): string {
   const normalized = error.toLowerCase();
@@ -43,42 +44,6 @@ function scheduleFailureSummary(error: string): string {
     return "The assigned agent no longer has access to this list. Choose another assignee or update its access.";
   }
   return "The task could not be created. Check the schedule settings, then retry.";
-}
-
-// Next occurrence of the schedule strictly after `after`.
-export function computeNextRunAt(
-  after: number,
-  cadence: Cadence,
-  hourUtc: number,
-  dayOfWeek?: number,
-  dayOfMonth?: number,
-): number {
-  const d = new Date(after);
-  d.setUTCMinutes(0, 0, 0);
-  if (cadence === "hourly") {
-    d.setUTCHours(d.getUTCHours() + 1);
-    return d.getTime();
-  }
-  d.setUTCHours(hourUtc);
-  if (cadence === "daily") {
-    while (d.getTime() <= after) d.setUTCDate(d.getUTCDate() + 1);
-    return d.getTime();
-  }
-  if (cadence === "weekly") {
-    const target = ((dayOfWeek ?? 1) % 7 + 7) % 7;
-    while (d.getUTCDay() !== target || d.getTime() <= after) {
-      d.setUTCDate(d.getUTCDate() + 1);
-    }
-    return d.getTime();
-  }
-  // monthly — clamp to 1..28 so every month works.
-  const dom = Math.min(Math.max(dayOfMonth ?? 1, 1), 28);
-  d.setUTCDate(dom);
-  while (d.getTime() <= after) {
-    d.setUTCMonth(d.getUTCMonth() + 1);
-    d.setUTCDate(dom);
-  }
-  return d.getTime();
 }
 
 export type CreateScheduledTaskArgs = {
@@ -104,7 +69,10 @@ export async function createScheduledTaskCore(
   const list = await ctx.db.get(args.listId);
   if (!list) throw new ConvexError("List not found");
   await validateTaskAssignees(ctx, list, args.assigneeIds ?? []);
-  const hourUtc = Math.min(Math.max(args.hourUtc ?? 9, 0), 23);
+  const hourUtc = args.hourUtc ?? 9;
+  if (!Number.isInteger(hourUtc) || hourUtc < 0 || hourUtc > 23) {
+    throw new ConvexError("hourUtc must be a finite integer between 0 and 23");
+  }
   return await ctx.db.insert("scheduledTasks", {
     listId: args.listId,
     title: args.title.trim(),
@@ -144,6 +112,32 @@ export const listForList = query({
       .query("scheduledTasks")
       .withIndex("by_list", (q) => q.eq("listId", listId))
       .collect();
+  },
+});
+
+// Planned creation times, not completed tasks or guaranteed execution. The
+// worker intentionally coalesces missed runs; previews never invent catch-up tasks.
+export const calendarForList = query({
+  args: { listId: v.id("lists"), start: v.number(), end: v.number() },
+  handler: async (ctx, { listId, start, end }) => {
+    await requireListAccess(ctx, listId);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 62 * 86400000) {
+      throw new ConvexError("Calendar range must be positive and at most 62 days");
+    }
+    const schedules = await ctx.db.query("scheduledTasks")
+      .withIndex("by_list", q => q.eq("listId", listId)).collect();
+    const occurrences = [];
+    for (const schedule of schedules) {
+      const blueprint = schedule.blueprintId ? await ctx.db.get(schedule.blueprintId) : null;
+      const title = blueprint?.title ?? schedule.title;
+      // Past slots were coalesced by the worker, not individual historical tasks.
+      if (end <= Date.now()) continue;
+      for (const scheduledFor of projectOccurrences(schedule, Math.max(start, Date.now()), end)) {
+        occurrences.push({ scheduledTaskId: schedule._id, title, scheduledFor,
+          state: "planned" as const, lastError: schedule.lastError });
+      }
+    }
+    return occurrences.sort((a, b) => a.scheduledFor - b.scheduledFor);
   },
 });
 
@@ -291,7 +285,7 @@ export const _materializeOne = internalMutation({
     // list, estimate, approval gate); the schedule's own fields cover the
     // bare-title case and act as the fallback if the blueprint was deleted.
     const bp = st.blueprintId ? await ctx.db.get(st.blueprintId) : null;
-    await createTaskCore(
+    const taskId = await createTaskCore(
       ctx,
       bp
         ? {
@@ -312,6 +306,7 @@ export const _materializeOne = internalMutation({
           },
       actor,
     );
+    await ctx.db.patch(taskId, { scheduledTaskId: st._id, scheduledFor: st.nextRunAt });
     await ctx.db.patch(st._id, {
       lastRunAt: now,
       lastError: undefined,

@@ -140,6 +140,18 @@ describe("computeNextRunAt", () => {
         cadence: "hourly",
       }),
     ).rejects.toThrow(/outside this task's scope/i);
+    for (const hourUtc of [-1, 24, 9.5]) {
+      await expect(
+        t.mutation(api.agentApi.createScheduledTask, {
+          apiKey: "cua_hourly_operator",
+          listId,
+          title: "invalid UTC hour",
+          cadence: "hourly",
+          hourUtc,
+        }),
+      ).rejects.toThrow(/hourUtc must be a finite integer between 0 and 23/);
+    }
+    expect(await t.run(ctx => ctx.db.query("scheduledTasks").collect())).toHaveLength(0);
     const blueprintId = await t.mutation(api.agentApi.createBlueprint, {
       apiKey: "cua_hourly_operator",
       name: "  Agent health SOP  ",
@@ -193,6 +205,19 @@ describe("computeNextRunAt", () => {
       listId,
     });
     expect(tasks).toHaveLength(1);
+    expect(tasks[0].scheduledTaskId).toBe(scheduledTaskId);
+    expect(tasks[0].scheduledFor).toEqual(expect.any(Number));
+    await t.action(internal.scheduledTasks.materializeOne, { scheduledTaskId });
+    expect(await t.withIdentity(OWNER).query(api.tasks.listForList, { listId })).toHaveLength(1);
+    const preview = await t.withIdentity(OWNER).query(api.scheduledTasks.calendarForList, {
+      listId, start: Date.now(), end: Date.now() + 86400000,
+    });
+    expect(preview.length).toBeGreaterThan(0);
+    expect(preview[0]).toMatchObject({ scheduledTaskId, state: "planned" });
+    await expect(t.withIdentity({ subject: "outsider" }).query(api.scheduledTasks.calendarForList, {
+      listId, start: Date.now(), end: Date.now() + 86400000,
+    })).rejects.toThrow();
+
     expect(tasks[0]).toMatchObject({
       title: "Inspect agent health",
       assigneeClerkIds: [agentId],

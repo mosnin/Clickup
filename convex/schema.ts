@@ -518,6 +518,9 @@ export default defineSchema({
         v.literal("monthly"),
       ),
     ),
+    // Retained occurrence lineage. Deleting a schedule never deletes its task history.
+    scheduledTaskId: v.optional(v.id("scheduledTasks")),
+    scheduledFor: v.optional(v.number()),
     // Phase 12 — agent collaboration:
     //   - sprintId groups tasks into a sprint (see `sprints`).
     //   - blockedByTaskIds are hard dependencies; agents refuse to complete
