@@ -78,6 +78,41 @@ async function makePersonalTask(
 }
 
 describe("checklist templates", () => {
+  it("preserves a long checklist through edits without changing another task", async () => {
+    const t = convexTest(schema, modules);
+    const workspaceId = await seed(t);
+    const taskId = await makeWorkspaceTask(t, workspaceId);
+    const otherTaskId = await makeWorkspaceTask(t, workspaceId);
+    const owner = t.withIdentity(OWNER);
+    const items = Array.from({ length: 120 }, (_, index) => ({
+      id: `step-${index + 1}`,
+      text: `Deliverable ${index + 1}`,
+      done: false,
+    }));
+
+    await owner.mutation(api.tasks.update, { taskId, checklist: items });
+    let saved = await owner.query(api.tasks.get, { taskId });
+    expect(saved?.checklist).toHaveLength(120);
+    expect(saved?.checklist?.[119].text).toBe("Deliverable 120");
+
+    const edited = items.map((item, index) => ({ ...item, done: index === 0 || index === 119 }));
+    await owner.mutation(api.tasks.update, { taskId, checklist: edited });
+    saved = await owner.query(api.tasks.get, { taskId });
+    expect(saved?.checklist?.filter(item => item.done).map(item => item.id)).toEqual(["step-1", "step-120"]);
+
+    await owner.mutation(api.tasks.update, {
+      taskId,
+      checklist: [...edited.slice(1), { id: "step-121", text: "Final signoff", done: false }],
+    });
+    saved = await owner.query(api.tasks.get, { taskId });
+    expect(saved?.checklist).toHaveLength(120);
+    expect(saved?.checklist?.[0].id).toBe("step-2");
+    expect(saved?.checklist?.[119].text).toBe("Final signoff");
+    expect((await owner.query(api.tasks.get, { taskId: otherTaskId }))?.checklist ?? []).toEqual([]);
+    await expect(t.withIdentity(OUTSIDER).mutation(api.tasks.update, { taskId, checklist: edited }))
+      .rejects.toThrow();
+  });
+
   it("creating a workspace template and applying it appends unchecked items", async () => {
     const t = convexTest(schema, modules);
     const workspaceId = await seed(t);
