@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { projectOccurrences } from "../convex/_recurringCalendar";
+import { computeNextRunAt, projectOccurrences } from "../convex/_recurringCalendar";
 
 const base = { enabled: true, nextRunAt: Date.UTC(2026, 8, 22, 9), cadence: "daily" as const, hourUtc: 9 };
 describe("recurring calendar projections", () => {
+  it("rejects invalid schedule values instead of looping or returning invalid dates", () => {
+    expect(() => computeNextRunAt(base.nextRunAt, "weekly", 9, 1.5)).toThrow(/finite integers/);
+    expect(() => computeNextRunAt(base.nextRunAt, "weekly", 9, Infinity)).toThrow(/finite integers/);
+    expect(() => computeNextRunAt(base.nextRunAt, "daily", NaN)).toThrow(/finite integers/);
+    expect(() => computeNextRunAt(Infinity, "daily", 9)).toThrow(/valid timestamp/);
+    expect(() => computeNextRunAt(8640000000000000, "weekly", 9, 1)).toThrow(/supported date range/);
+  });
   it("uses a half-open window and includes an occurrence exactly at its start", () => {
     const start = base.nextRunAt;
     expect(projectOccurrences(base, start, start + 3 * 86400000)).toEqual([start, start + 86400000, start + 2 * 86400000]);
