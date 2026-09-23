@@ -69,7 +69,10 @@ export async function createScheduledTaskCore(
   const list = await ctx.db.get(args.listId);
   if (!list) throw new ConvexError("List not found");
   await validateTaskAssignees(ctx, list, args.assigneeIds ?? []);
-  const hourUtc = Math.min(Math.max(args.hourUtc ?? 9, 0), 23);
+  const hourUtc = args.hourUtc ?? 9;
+  if (!Number.isInteger(hourUtc) || hourUtc < 0 || hourUtc > 23) {
+    throw new ConvexError("hourUtc must be a finite integer between 0 and 23");
+  }
   return await ctx.db.insert("scheduledTasks", {
     listId: args.listId,
     title: args.title.trim(),

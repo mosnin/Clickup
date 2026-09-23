@@ -140,6 +140,18 @@ describe("computeNextRunAt", () => {
         cadence: "hourly",
       }),
     ).rejects.toThrow(/outside this task's scope/i);
+    for (const hourUtc of [-1, 24, 9.5]) {
+      await expect(
+        t.mutation(api.agentApi.createScheduledTask, {
+          apiKey: "cua_hourly_operator",
+          listId,
+          title: "invalid UTC hour",
+          cadence: "hourly",
+          hourUtc,
+        }),
+      ).rejects.toThrow(/hourUtc must be a finite integer between 0 and 23/);
+    }
+    expect(await t.run(ctx => ctx.db.query("scheduledTasks").collect())).toHaveLength(0);
     const blueprintId = await t.mutation(api.agentApi.createBlueprint, {
       apiKey: "cua_hourly_operator",
       name: "  Agent health SOP  ",

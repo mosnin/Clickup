@@ -1,15 +1,14 @@
 // Shared deterministic UTC recurrence arithmetic. No database or browser dependencies.
 export type Cadence = "hourly" | "daily" | "weekly" | "monthly";
 
-// Next occurrence of the schedule strictly after `after`.
-export function computeNextRunAt(
-  after: number,
+function validateRecurrenceInputs(
+  timestamp: number,
   cadence: Cadence,
   hourUtc: number,
   dayOfWeek?: number,
   dayOfMonth?: number,
-): number {
-  if (!Number.isFinite(new Date(after).getTime())) {
+): void {
+  if (!Number.isFinite(new Date(timestamp).getTime())) {
     throw new RangeError("Schedule time must be a valid timestamp");
   }
   if (!["hourly", "daily", "weekly", "monthly"].includes(cadence)) {
@@ -20,6 +19,17 @@ export function computeNextRunAt(
     || (dayOfMonth !== undefined && !Number.isInteger(dayOfMonth))) {
     throw new RangeError("Schedule hours and days must be finite integers");
   }
+}
+
+// Next occurrence of the schedule strictly after `after`.
+export function computeNextRunAt(
+  after: number,
+  cadence: Cadence,
+  hourUtc: number,
+  dayOfWeek?: number,
+  dayOfMonth?: number,
+): number {
+  validateRecurrenceInputs(after, cadence, hourUtc, dayOfWeek, dayOfMonth);
   const result = (date: Date) => {
     const next = date.getTime();
     if (!Number.isFinite(next) || next <= after) {
@@ -63,10 +73,12 @@ export function projectOccurrences(
   start: number,
   end: number,
 ): number[] {
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 62 * 86400000) {
+  if (!Number.isFinite(new Date(start).getTime()) || !Number.isFinite(new Date(end).getTime())
+    || end <= start || end - start > 62 * 86400000) {
     throw new Error("Calendar range must be positive and at most 62 days");
   }
-  if (!schedule.enabled || !Number.isFinite(schedule.nextRunAt)) return [];
+  if (!schedule.enabled) return [];
+  validateRecurrenceInputs(schedule.nextRunAt, schedule.cadence, schedule.hourUtc, schedule.dayOfWeek, schedule.dayOfMonth);
   const occurrences: number[] = [];
   let next = schedule.nextRunAt;
   // Skip missed historical slots without looping through years of downtime.

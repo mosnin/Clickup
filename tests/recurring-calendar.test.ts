@@ -9,6 +9,10 @@ describe("recurring calendar projections", () => {
     expect(() => computeNextRunAt(base.nextRunAt, "daily", NaN)).toThrow(/finite integers/);
     expect(() => computeNextRunAt(Infinity, "daily", 9)).toThrow(/valid timestamp/);
     expect(() => computeNextRunAt(8640000000000000, "weekly", 9, 1)).toThrow(/supported date range/);
+    expect(() => computeNextRunAt(base.nextRunAt, "daily", 24)).toThrow(/finite integers/);
+    expect(() => projectOccurrences({ ...base, nextRunAt: Infinity }, base.nextRunAt, base.nextRunAt + 86400000)).toThrow(/valid timestamp/);
+    expect(() => projectOccurrences({ ...base, hourUtc: 24 }, base.nextRunAt, base.nextRunAt + 86400000)).toThrow(/finite integers/);
+    expect(projectOccurrences({ ...base, enabled: false, nextRunAt: Infinity }, base.nextRunAt, base.nextRunAt + 86400000)).toEqual([]);
   });
   it("uses a half-open window and includes an occurrence exactly at its start", () => {
     const start = base.nextRunAt;
